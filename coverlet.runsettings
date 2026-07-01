@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RunSettings>
+  <DataCollectionRunSettings>
+    <DataCollectors>
+      <DataCollector friendlyName="XPlat Code Coverage">
+        <Configuration>
+          <Format>cobertura,json,lcov</Format>
+
+          <!-- Include only our assemblies -->
+          <ModulePaths>
+            <Include>
+              <ModulePath>SpellCrafter\.dll$</ModulePath>
+              <ModulePath>SpellCrafter\.Cli\.dll$</ModulePath>
+            </Include>
+            <Exclude>
+              <ModulePath>SpellCrafter\.Tests\.dll$</ModulePath>
+            </Exclude>
+          </ModulePaths>
+
+          <!-- Exclude generated code -->
+          <ExcludeByAttribute>
+            <Exclude>System.CodeDom.Compiler.GeneratedCodeAttribute</Exclude>
+            <Exclude>System.Diagnostics.DebuggerNonUserCodeAttribute</Exclude>
+          </ExcludeByAttribute>
+
+          <ExcludeByFile>
+            <Exclude>**/Program.cs</Exclude>
+            <Exclude>**/App.axaml.cs</Exclude>
+          </ExcludeByFile>
+
+          <IncludeTestAssembly>false</IncludeTestAssembly>
+        </Configuration>
+      </DataCollector>
+    </DataCollectors>
+  </DataCollectionRunSettings>
+</RunSettings>
