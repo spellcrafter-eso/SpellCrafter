@@ -73,7 +73,7 @@
                                      Icon="{StaticResource HomeStorageIcon}"
                                      Text="My Mods"
                                      IsChecked="{Binding Path=IsMyModsButtonChecked}"
-                                     IsEnabled="{Binding Source={x:Static local:AppSettings.Instance}, Path=AddonsDirectory, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
+                                     IsEnabled="{Binding Path=IsAddonsDirectoryReady}"
                                      IsTextVisible="{Binding Path=IsPaneOpen, Mode=TwoWay, ElementName=MainSplitView}" />
 
                 <controls:MenuButton DockPanel.Dock="Top"
@@ -84,7 +84,7 @@
                                      Icon="{StaticResource BrowseIcon}"
                                      Text="Browse"
                                      IsChecked="{Binding Path=IsBrowseButtonChecked}"
-                                     IsEnabled="{Binding Source={x:Static local:AppSettings.Instance}, Path=AddonsDirectory, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
+                                     IsEnabled="{Binding Path=IsAddonsDirectoryReady}"
                                      IsTextVisible="{Binding Path=IsPaneOpen, Mode=TwoWay, ElementName=MainSplitView}" />
 
                 <controls:MenuButton DockPanel.Dock="Bottom"

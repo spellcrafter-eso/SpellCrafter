@@ -3,9 +3,10 @@
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
 			 xmlns:vm="clr-namespace:SpellCrafter.ViewModels"
+			 xmlns:services="clr-namespace:SpellCrafter.Services"
 			 xmlns:controls="clr-namespace:SpellCrafter.Controls"
 			 xmlns:materialcontrols="clr-namespace:Material.Styles.Controls;assembly=Material.Styles"
-             mc:Ignorable="d" d:DesignWidth="600" d:DesignHeight="150"
+             mc:Ignorable="d" d:DesignWidth="600" d:DesignHeight="400"
 			 Width="600"
              x:Class="SpellCrafter.Views.SettingsView"
 			 x:DataType="vm:SettingsViewModel">
@@ -18,23 +19,81 @@
 				   FontSize="24" FontWeight="Bold"/>
 		<TextBlock Text="Addons Folder" Margin="0 20"
 				   Foreground="{DynamicResource MaterialBodyBrush}" FontSize="20"/>
-		<Grid ColumnDefinitions="* Auto" RowDefinitions="Auto Auto">
+		<Grid ColumnDefinitions="*,Auto,Auto" RowDefinitions="Auto,Auto,Auto,Auto">
+			<!-- Path text box -->
 			<materialcontrols:Card Grid.Column="0" Grid.Row="0" Padding="7 0 0 0">
-				<TextBox Text="{Binding Path=AddonsDirectory}" IsReadOnly="True"
+				<TextBox Text="{Binding Path=AddonsDirectory, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                         IsReadOnly="False"
                          Foreground="{DynamicResource MaterialPrimaryForegroundBrush}"
-                         Classes="solo" Theme="{StaticResource SoloTextBox}" Watermark="Not specified"/>
+                         Classes="solo" Theme="{StaticResource SoloTextBox}"
+                         PlaceholderText="Not specified"/>
 			</materialcontrols:Card>
-			<Button Grid.Column="1" Grid.Row="0" Padding="4" Classes="Flat" Command="{Binding Path=BrowseAddonsFolderCommand}"
-					Margin="14 0 0 0" Width="{Binding $self.Bounds.Height}" ToolTip.Tip="Manually select addons folder">
+			<!-- Auto-detect button -->
+			<Button Grid.Column="1" Grid.Row="0" Padding="4" Classes="Flat"
+                    Command="{Binding Path=DetectAddonsFolderCommand}"
+					Margin="14 0 0 0" ToolTip.Tip="Auto-detect addons folder">
+				<PathIcon Data="{StaticResource SearchIcon}"/>
+			</Button>
+			<!-- Browse button -->
+			<Button Grid.Column="2" Grid.Row="0" Padding="4" Classes="Flat"
+                    Command="{Binding Path=BrowseAddonsFolderCommand}"
+					Margin="14 0 0 0" Width="{Binding $self.Bounds.Height}"
+                    ToolTip.Tip="Manually select addons folder">
 				<PathIcon Data="{StaticResource FolderSettingsIcon}"/>
 			</Button>
-			<TextBlock Grid.Column="0" Grid.Row="1" 
-                       IsVisible="{Binding AddonsDirectory, Converter={x:Static StringConverters.IsNullOrEmpty}}" 
-                       Text="Please specify the path to the addons directory"
+			<!-- Validation message -->
+			<TextBlock Grid.Column="0" Grid.ColumnSpan="3" Grid.Row="1"
+                       IsVisible="{Binding ValidationMessage, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
+                       Text="{Binding ValidationMessage}"
                        Foreground="#cc0000"
 					   FontWeight="Bold"
-                       Margin="10 16 10 0"/>
+                       TextWrapping="Wrap"
+                       Margin="10 8 10 0"/>
+			<!-- Missing path hint (only shown when no candidates and path empty) -->
+			<TextBlock Grid.Column="0" Grid.ColumnSpan="3" Grid.Row="1"
+                       IsVisible="{Binding AddonsDirectory, Converter={x:Static StringConverters.IsNullOrEmpty}}"
+                       Text="{Binding DetectionMessage}"
+                       Foreground="#888888"
+                       TextWrapping="Wrap"
+                       Margin="10 8 10 0"/>
+			<!-- Detected candidates dropdown -->
+			<ComboBox Grid.Column="0" Grid.ColumnSpan="3" Grid.Row="2"
+                      ItemsSource="{Binding DetectedAddonsDirectories}"
+                      SelectedItem="{Binding SelectedDetectedAddonsDirectory}"
+                      IsVisible="{Binding HasDetectedAddonsDirectories}"
+                      Margin="10 8 10 0"
+                      PlaceholderText="Select detected AddOns folder...">
+				<ComboBox.ItemTemplate>
+					<DataTemplate x:DataType="services:AddonsDirectoryCandidate">
+						<StackPanel>
+							<TextBlock Text="{Binding DisplayName}" FontWeight="SemiBold" />
+							<TextBlock Text="{Binding Path}" FontSize="11" TextWrapping="Wrap" />
+							<TextBlock Text="{Binding SourceDescription}" FontSize="11" Opacity="0.75" />
+						</StackPanel>
+					</DataTemplate>
+				</ComboBox.ItemTemplate>
+			</ComboBox>
+			<!-- Detection warnings -->
+			<ItemsControl Grid.Column="0" Grid.ColumnSpan="3" Grid.Row="3"
+                          ItemsSource="{Binding DetectionWarnings}"
+                          IsVisible="{Binding HasDetectionWarnings}"
+                          Margin="10 4 10 0">
+				<ItemsControl.ItemTemplate>
+					<DataTemplate x:DataType="x:String">
+						<TextBlock Text="{Binding}"
+                                   Foreground="#d6a100"
+                                   FontSize="12"
+                                   TextWrapping="Wrap" />
+					</DataTemplate>
+				</ItemsControl.ItemTemplate>
+			</ItemsControl>
 		</Grid>
+		<!-- Save message -->
+		<TextBlock Text="{Binding SaveMessage}"
+                   IsVisible="{Binding SaveMessage, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
+                   Foreground="#66cc66"
+                   TextWrapping="Wrap"
+                   Margin="10 12 10 0"/>
 		<Button Content="Apply" Command="{Binding Path=ApplyCommand}" 
 				HorizontalAlignment="Right" Margin="0 28 0 0"/>
 	</StackPanel>

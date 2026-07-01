@@ -371,3 +371,6 @@ FodyWeavers.xsd
 coverage-report/
 /CoverageReport*/
 diag-test.cs
+
+# Runtime user configuration
+settings.json

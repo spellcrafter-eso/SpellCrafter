@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Linq;
 using System.Reactive.Disposables;
+using System.Reactive.Linq;
 using System.Windows.Input;
 using ReactiveUI;
 using ReactiveUI.Fody.Helpers;
@@ -20,6 +21,8 @@ public class MainWindowViewModel : ViewModelBase, IScreen, IActivatableViewModel
     [Reactive] public bool IsBrowseButtonChecked { get; set; }
     [Reactive] public bool IsSettingsButtonChecked { get; set; }
 
+    [Reactive] public bool IsAddonsDirectoryReady { get; set; }
+
     [Reactive] public RangedObservableCollection<OperationRecoveryNotice> RecoveryNotices { get; set; } = [];
     public bool HasRecoveryNotices => RecoveryNotices.Count > 0;
 
@@ -35,20 +38,23 @@ public class MainWindowViewModel : ViewModelBase, IScreen, IActivatableViewModel
         RecoveryNotices.CollectionChanged += (_, _) =>
             this.RaisePropertyChanged(nameof(HasRecoveryNotices));
 
-        var isAddonsDirectoryValid =
-            SettingsViewModel.CheckIsAddonDirectoryValid(AppSettings.Instance.AddonsDirectory);
+        // Use full validation - don't clear the saved path
+        var isAddonsDirectoryReady = IsConfiguredAddonsDirectoryReady();
+        IsAddonsDirectoryReady = isAddonsDirectoryReady;
 
-        if (!isAddonsDirectoryValid)
-            AppSettings.Instance.AddonsDirectory = string.Empty;
+        // Subscribe to changes in AddonsDirectory to update IsAddonsDirectoryReady
+        AppSettings.Instance
+            .WhenAnyValue(x => x.AddonsDirectory)
+            .Subscribe(_ => { IsAddonsDirectoryReady = IsConfiguredAddonsDirectoryReady(); });
 
-        if (isAddonsDirectoryValid)
+        if (isAddonsDirectoryReady)
             IsMyModsButtonChecked = true;
         else
             IsSettingsButtonChecked = true;
 
         this.WhenActivated((CompositeDisposable _) =>
         {
-            if (isAddonsDirectoryValid)
+            if (isAddonsDirectoryReady)
                 NavigateToViewModel(new InstalledAddonsViewModel());
             else
                 NavigateToViewModel(new SettingsViewModel());
@@ -117,5 +123,11 @@ public class MainWindowViewModel : ViewModelBase, IScreen, IActivatableViewModel
         _currentHistoryIndex++;
         GoBackCommand.RaiseCanExecuteChanged();
         GoForwardCommand.RaiseCanExecuteChanged();
+    }
+
+    private static bool IsConfiguredAddonsDirectoryReady()
+    {
+        return AddonsDirectoryValidator.GetValidationError(
+            AppSettings.Instance.AddonsDirectory) == null;
     }
 }

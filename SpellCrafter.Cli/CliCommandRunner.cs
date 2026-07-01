@@ -165,7 +165,7 @@ Global options:
 
 Commands:
   status                    Show configuration and recovery status
-  config get|set|list       Manage configuration
+  config get|set|list|detect|validate  Manage configuration
   list installed [options]  List installed addons
   list online [options]     List cached online addons
   search <query>            Search addons by name
@@ -308,16 +308,21 @@ Run 'spellcrafter <command> --help' for command-specific options.");
                 return CliExitCodes.Success;
 
             case "validate":
-                var path = AppSettings.Instance.AddonsDirectory;
-                var validationError = AddonsDirectoryValidator.GetValidationError(path);
+                var validationPath = AppSettings.Instance.AddonsDirectory;
+                var validationError = AddonsDirectoryValidator.GetValidationError(validationPath);
                 if (validationError != null)
                 {
                     error.WriteLine(validationError);
                     return CliExitCodes.UserError;
                 }
 
-                output.WriteLine($"AddOns directory is valid: {path}");
+                output.WriteLine($"AddOns directory is valid: {validationPath}");
                 return CliExitCodes.Success;
+
+            case "detect":
+            case "autodetect":
+            case "detect-addons-directory":
+                return RunDetectAddonsDirectory(args.Skip(1).ToList(), output, error, globalOptions);
 
             default:
                 error.WriteLine($"Unknown config subcommand: {subcommand}");
@@ -333,15 +338,10 @@ Run 'spellcrafter <command> --help' for command-specific options.");
     {
         path = Path.GetFullPath(path);
 
-        if (!Directory.Exists(path))
+        var validationError = AddonsDirectoryValidator.GetValidationError(path);
+        if (validationError != null)
         {
-            error.WriteLine($"Directory does not exist: {path}");
-            return CliExitCodes.UserError;
-        }
-
-        if (!AddonsDirectoryValidator.IsValidAddonsDirectory(path))
-        {
-            error.WriteLine($"Directory must be named 'AddOns': {path}");
+            error.WriteLine(validationError);
             return CliExitCodes.UserError;
         }
 
@@ -361,6 +361,70 @@ Run 'spellcrafter <command> --help' for command-specific options.");
             output.WriteLine($"Scanned installed addons: {addons.Count}");
 
         return CliExitCodes.Success;
+    }
+
+    private static int RunDetectAddonsDirectory(
+        List<string> args,
+        TextWriter output,
+        TextWriter error,
+        GlobalOptions globalOptions)
+    {
+        var flags = ParseFlags(args);
+        var shouldSet = flags.ContainsKey("set");
+
+        var result = AddonsDirectoryDiscoveryService.Discover();
+
+        if (globalOptions.Json)
+        {
+            var dto = new
+            {
+                candidates = result.Candidates.Select(c => new
+                {
+                    path = c.Path,
+                    displayName = c.DisplayName,
+                    sourceDescription = c.SourceDescription
+                }).ToList(),
+                warnings = result.Warnings
+            };
+            output.WriteLine(CliOutput.ToJson(dto));
+        }
+        else
+        {
+            foreach (var warning in result.Warnings)
+                error.WriteLine($"Warning: {warning}");
+
+            if (!result.HasCandidates)
+            {
+                error.WriteLine("No ESO AddOns folder was detected.");
+                error.WriteLine("Use 'config set addons-directory <path>' to configure it manually.");
+                return CliExitCodes.UserError;
+            }
+
+            output.WriteLine("Detected ESO AddOns folders:");
+            for (var i = 0; i < result.Candidates.Count; i++)
+            {
+                var c = result.Candidates[i];
+                output.WriteLine($"  {i + 1}. {c.DisplayName} — {c.Path}");
+            }
+        }
+
+        if (!shouldSet)
+            return CliExitCodes.Success;
+
+        if (result.Candidates.Count == 0)
+        {
+            error.WriteLine("Cannot use --set: no ESO AddOns folder was detected.");
+            return CliExitCodes.UserError;
+        }
+
+        if (result.Candidates.Count > 1)
+        {
+            error.WriteLine("Cannot use --set: multiple ESO AddOns folders were detected.");
+            error.WriteLine("Use 'config set addons-directory \"<path>\"' to configure one manually.");
+            return CliExitCodes.UserError;
+        }
+
+        return SetAddonsDirectory(result.Candidates[0].Path, output, error, globalOptions);
     }
 
     // ---- List ----
