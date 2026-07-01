@@ -1,0 +1,11 @@
+global using System;
+global using System.Collections.Generic;
+global using System.IO;
+global using System.Threading;
+global using System.Threading.Tasks;
+global using NSubstitute;
+global using Xunit;
+global using SpellCrafter.Models;
+global using SpellCrafter.Services;
+global using SpellCrafter.Data;
+global using SpellCrafter.Tests.TestInfrastructure;
