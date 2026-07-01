@@ -1,18 +1,14 @@
 using ReactiveUI;
 using SpellCrafter.ViewModels;
 
-namespace SpellCrafter.Views
+namespace SpellCrafter.Views;
+
+public partial class MainWindowView : ReactiveMetroWindow<MainWindowViewModel>
 {
-    public partial class MainWindowView : ReactiveMetroWindow<MainWindowViewModel>
+    public MainWindowView()
     {
-        public MainWindowView()
-        {
-            InitializeComponent();
+        InitializeComponent();
 
-            var vm = new MainWindowViewModel();
-            DataContext = vm;
-
-            this.WhenActivated(_ => { });
-        }
+        this.WhenActivated(_ => { });
     }
 }

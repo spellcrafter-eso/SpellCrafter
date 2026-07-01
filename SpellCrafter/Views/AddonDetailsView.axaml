@@ -23,7 +23,7 @@
 				</Border>
 				<WrapPanel Grid.Column="1" Grid.Row="0">
 					<StackPanel Orientation="Horizontal" ClipToBounds="True">
-						<TextBlock Text="{Binding Path=Title}"
+						<TextBlock Text="{Binding Path=Addon.Title}"
                                    Foreground="{DynamicResource MaterialBodyBrush}"
                                    FontSize="24" FontWeight="Bold"
                                    VerticalAlignment="Center"/>
@@ -32,7 +32,7 @@
                                    Fill="{DynamicResource MaterialDividerBrush}"/>
 						<TextBlock Text="by " Classes="Body2" Foreground="{DynamicResource MaterialBodyLightBrush}" VerticalAlignment="Center"/>
 					</StackPanel>
-					<ItemsControl ItemsSource="{Binding Path=Authors}" VerticalAlignment="Center">
+					<ItemsControl ItemsSource="{Binding Path=Addon.Authors}" VerticalAlignment="Center">
 						<ItemsControl.ItemsPanel>
 							<ItemsPanelTemplate>
 								<WrapPanel Orientation="Horizontal"/>
@@ -46,7 +46,7 @@
 						</ItemsControl.ItemTemplate>
 					</ItemsControl>
 				</WrapPanel>
-				<TextBlock Grid.Column="1" Grid.Row="1" TextWrapping="Wrap" Text="{Binding Path=Description}"
+				<TextBlock Grid.Column="1" Grid.Row="1" TextWrapping="Wrap" Text="{Binding Path=Addon.Description}"
 						   Foreground="{DynamicResource MaterialBodyBrush}" FontWeight="Light" Margin="0 8 4 4"/>
 				<StackPanel Grid.Column="1" Grid.Row="2" Grid.ColumnSpan="3" Orientation="Horizontal">
 					<TextBlock>
@@ -55,7 +55,7 @@
 									  Height="20" Width="20"
 									  Foreground="{DynamicResource MaterialBodyBrush}"
 									  Grid.Column="0"/>
-							<TextBlock Grid.Column="1" Text="{Binding Path=Downloads}"
+							<TextBlock Grid.Column="1" Text="{Binding Path=Addon.Downloads}"
 									   VerticalAlignment="Center" Margin="8 0 14 0"
 									   Foreground="{DynamicResource MaterialBodyBrush}"
 									   ToolTip.Tip="Downloads"/>
@@ -79,7 +79,7 @@
 									  Height="20" Width="20"
 									  Foreground="{DynamicResource MaterialBodyBrush}"
 									  Grid.Column="0"/>
-							<TextBlock Grid.Column="1" Text="{Binding Path=FileSize}"
+							<TextBlock Grid.Column="1" Text="{Binding Path=Addon.FileSize}"
 									   VerticalAlignment="Center" Margin="8 0 14 0"
 									   Foreground="{DynamicResource MaterialBodyBrush}"
 									   ToolTip.Tip="File size"/>
@@ -94,7 +94,7 @@
 								  Height="20" Width="20"
 								  Foreground="{DynamicResource MaterialBodyBrush}"/>
 					</Button>
-					<controls:AddonActionControl Grid.Column="1"/>
+					<controls:AddonActionControl Grid.Column="1" DataContext="{Binding Addon}"/>
 				</Grid>
 			</Grid>
 		</materialcontrols:Card>
@@ -108,7 +108,7 @@
 			</TabControl.ItemsPanel>
 
 			<TabItem TabIndex="0" Header="Overview">
-				<TextBlock Text="{Binding Path=Overview}" TextWrapping="Wrap" 
+				<TextBlock Text="{Binding Path=Addon.Overview}" TextWrapping="Wrap" 
 						   Foreground="{DynamicResource MaterialBodyBrush}" Margin="0 14 0 0"/>
 			</TabItem>
 

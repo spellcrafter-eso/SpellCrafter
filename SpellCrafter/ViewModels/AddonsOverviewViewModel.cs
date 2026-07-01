@@ -39,7 +39,7 @@ namespace SpellCrafter.ViewModels
         [Reactive] public Addon? DataGridModsSelectedItem { get; set; }
         public bool IsAddonsDisplayed => !_isFiltered || DisplayedMods.Count > 0;
 
-        public RelayCommand UpdateAllCommand { get; }
+        public AsyncRelayCommand UpdateAllCommand { get; }
         public RelayCommand FilterModsCommand { get; }
         public RelayCommand RefreshModsCommand { get; }
 
@@ -47,9 +47,9 @@ namespace SpellCrafter.ViewModels
         {
             BrowseMode = browseMode;
 
-            UpdateAllCommand = new RelayCommand
+            UpdateAllCommand = new AsyncRelayCommand
             (
-                _ => UpdateAll()
+                async _ => await UpdateAll()
             );
             FilterModsCommand = new RelayCommand
             (
@@ -64,19 +64,29 @@ namespace SpellCrafter.ViewModels
                 .Subscribe(_ => this.RaisePropertyChanged(nameof(IsAddonsDisplayed)));
         }
 
-        private async void UpdateAll()
+        private async Task UpdateAll()
         {
             Debug.WriteLine("Updating all outdated addons");
 
             var oldIsFiltering = IsFiltering;
             IsFiltering = true;
-            foreach (var addon in ModsSource)
-            {
-                if (addon.State is AddonState.Outdated or AddonState.InstallationError)
-                    await addon.Update(false);
-            }
 
-            IsFiltering = oldIsFiltering;
+            try
+            {
+                foreach (var addon in ModsSource)
+                {
+                    if (addon.State is AddonState.Outdated or AddonState.InstallationError)
+                    {
+                        var result = await addon.Update(false);
+                        if (!result.Succeeded)
+                            Debug.WriteLine($"Failed to update {addon.Name}: {result.ErrorMessage}");
+                    }
+                }
+            }
+            finally
+            {
+                IsFiltering = oldIsFiltering;
+            }
         }
 
         protected async void FilterMods()

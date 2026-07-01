@@ -12,6 +12,10 @@
 		<AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
 		<StripSymbols>true</StripSymbols>
 	</PropertyGroup>
+
+	<ItemGroup>
+		<InternalsVisibleTo Include="SpellCrafter.Tests" />
+	</ItemGroup>
 	<PropertyGroup Condition="'$(OS)' == 'Windows_NT'">
 		<DefineConstants>$(DefineConstants);WINDOWS</DefineConstants>
 	</PropertyGroup>

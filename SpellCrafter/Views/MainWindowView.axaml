@@ -1,159 +1,136 @@
 <controls:MetroWindow xmlns="https://github.com/avaloniaui"
-					  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-					  xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
-					  xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-					  xmlns:vm="clr-namespace:SpellCrafter.ViewModels"
-					  xmlns:models="clr-namespace:SpellCrafter.Models"
-					  xmlns:local="clr-namespace:SpellCrafter"
-					  xmlns:controls="clr-namespace:SpellCrafter.Controls"
-					  xmlns:converters="clr-namespace:SpellCrafter.Converters"
-					  xmlns:rxui="http://reactiveui.net"
-					  mc:Ignorable="d" d:DesignWidth="850" d:DesignHeight="600"
-					  x:Class="SpellCrafter.Views.MainWindowView"
-					  WindowStartupLocation="CenterScreen"
-					  Focusable="True"
-					  IsTabStop="True"
-					  TabIndex="0"
-					  Title="Spell Crafter" MinWidth="916" MinHeight="600"
-					  x:DataType="vm:MainWindowViewModel">
-	<Design.DataContext>
-		<vm:MainWindowViewModel/>
-	</Design.DataContext>
-	<Window.Resources>
-		<ResourceDictionary>
-			<converters:NotInstalledAddonStateToVisability x:Key="NotInstalledAddonStateToVisability"/>
-			<converters:InvertedNotInstalledAddonStateToVisability x:Key="InvertedNotInstalledAddonStateToVisability"/>
+                      xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                      xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+                      xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+                      xmlns:vm="clr-namespace:SpellCrafter.ViewModels"
+                      xmlns:models="clr-namespace:SpellCrafter.Models"
+                      xmlns:local="clr-namespace:SpellCrafter"
+                      xmlns:controls="clr-namespace:SpellCrafter.Controls"
+                      xmlns:converters="clr-namespace:SpellCrafter.Converters"
+                      xmlns:rxui="http://reactiveui.net"
+                      mc:Ignorable="d" d:DesignWidth="850" d:DesignHeight="600"
+                      x:Class="SpellCrafter.Views.MainWindowView"
+                      WindowStartupLocation="CenterScreen"
+                      Focusable="True"
+                      IsTabStop="True"
+                      TabIndex="0"
+                      Title="Spell Crafter" MinWidth="916" MinHeight="600"
+                      x:DataType="vm:MainWindowViewModel">
+    <Design.DataContext>
+        <vm:MainWindowViewModel />
+    </Design.DataContext>
+    <Window.Resources>
+        <ResourceDictionary>
+            <converters:NotInstalledAddonStateToVisability x:Key="NotInstalledAddonStateToVisability" />
+            <converters:InvertedNotInstalledAddonStateToVisability x:Key="InvertedNotInstalledAddonStateToVisability" />
 
-			<ContextMenu x:Key="AddonContextMenu" x:DataType="models:Addon">
-				<MenuItem Header="Install" Command="{Binding Path=InstallCommand}"
-						  IsVisible="{Binding Path=State, 
-											  Converter={StaticResource NotInstalledAddonStateToVisability}}">
-					<MenuItem.Icon>
-						<PathIcon Data="{StaticResource DownloadIcon}"/>
-					</MenuItem.Icon>
-				</MenuItem>
-				<MenuItem Header="Reinstall" Command="{Binding Path=ReinstallCommand}"
-						  IsVisible="{Binding Path=State, 
-											  Converter={StaticResource InvertedNotInstalledAddonStateToVisability}}">
-					<MenuItem.Icon>
-						<PathIcon Data="{StaticResource DownloadIcon}"/>
-					</MenuItem.Icon>
-				</MenuItem>
-				<MenuItem Header="View Mod" Command="{Binding Path=ViewModCommand}">
-					<MenuItem.Icon>
-						<PathIcon Data="{StaticResource ViewIcon}"/>
-					</MenuItem.Icon>
-				</MenuItem>
-				<MenuItem Header="View Mod Website" Command="{Binding Path=ViewWebsiteCommand}">
-					<MenuItem.Icon>
-						<PathIcon Data="{StaticResource LanguageIcon}"/>
-					</MenuItem.Icon>
-				</MenuItem>
-				<MenuItem Header="Copy Mod Link" Command="{Binding Path=CopyLinkCommand}">
-					<MenuItem.Icon>
-						<PathIcon Data="{StaticResource LinkIcon}"/>
-					</MenuItem.Icon>
-				</MenuItem>
-				<MenuItem Header="Browse Folder" Command="{Binding Path=BrowseFolderCommand}"
-						  IsVisible="{Binding Path=State, 
-											  Converter={StaticResource InvertedNotInstalledAddonStateToVisability}}">
-					<MenuItem.Icon>
-						<PathIcon Data="{StaticResource FolderIcon}"/>
-					</MenuItem.Icon>
-				</MenuItem>
-				<MenuItem Header="Delete Mod" Command="{Binding Path=DeleteCommand}"
-						  IsVisible="{Binding Path=State, 
-											  Converter={StaticResource InvertedNotInstalledAddonStateToVisability}}">
-					<MenuItem.Icon>
-						<PathIcon Data="{StaticResource DeleteIcon}"/>
-					</MenuItem.Icon>
-				</MenuItem>
-			</ContextMenu>
-		</ResourceDictionary>
-	</Window.Resources>
+        </ResourceDictionary>
+    </Window.Resources>
 
     <controls:MetroWindow.TitleBarInnerLeftContent>
-		<Grid ColumnDefinitions="Auto *">
-			<Button Grid.Column="0" HorizontalAlignment="Left" Classes="Flat"
+        <Grid ColumnDefinitions="Auto *">
+            <Button Grid.Column="0" HorizontalAlignment="Left" Classes="Flat"
                     CornerRadius="0" Width="{Binding $self.Bounds.Height}"
                     Command="{Binding Path=GoBackCommand}">
-                <PathIcon Data="{StaticResource ArrowBackIcon}" Height="14" Width="14"/>
+                <PathIcon Data="{StaticResource ArrowBackIcon}" Height="14" Width="14" />
             </Button>
-			<Button Grid.Column="1" HorizontalAlignment="Left" Classes="Flat"
-					CornerRadius="0" Width="{Binding $self.Bounds.Height}"
-					Command="{Binding Path=GoForwardCommand}">
-				<PathIcon Data="{StaticResource ArrowForwardIcon}" Height="14" Width="14"/>
+            <Button Grid.Column="1" HorizontalAlignment="Left" Classes="Flat"
+                    CornerRadius="0" Width="{Binding $self.Bounds.Height}"
+                    Command="{Binding Path=GoForwardCommand}">
+                <PathIcon Data="{StaticResource ArrowForwardIcon}" Height="14" Width="14" />
             </Button>
-		</Grid>
+        </Grid>
     </controls:MetroWindow.TitleBarInnerLeftContent>
 
-	<controls:MetroWindow.TitleBarInnerRightContent>
-		<Grid ColumnDefinitions="*">
-			<Button Grid.Column="0" HorizontalAlignment="Right" Classes="Flat"
-					CornerRadius="0" Width="{Binding $self.Bounds.Height}" IsEnabled="False">
-				<PathIcon Data="{StaticResource PaletteSwatchIcon}" Height="20" Width="20"/>
-			</Button>
-		</Grid>
-	</controls:MetroWindow.TitleBarInnerRightContent>
+    <controls:MetroWindow.TitleBarInnerRightContent>
+        <Grid ColumnDefinitions="*">
+            <Button Grid.Column="0" HorizontalAlignment="Right" Classes="Flat"
+                    CornerRadius="0" Width="{Binding $self.Bounds.Height}" IsEnabled="False">
+                <PathIcon Data="{StaticResource PaletteSwatchIcon}" Height="20" Width="20" />
+            </Button>
+        </Grid>
+    </controls:MetroWindow.TitleBarInnerRightContent>
 
-	<SplitView x:Name="MainSplitView"
-			   IsPaneOpen="True"
-			   OpenPaneLength="192"
-			   CompactPaneLength="64"
-			   DisplayMode="CompactInline">
-		<SplitView.Pane>
-			<DockPanel LastChildFill="False" Margin="8">
-				<ToggleButton Classes="primary" DockPanel.Dock="Top" Margin="6 0 6 14" HorizontalAlignment="Left"
-							  Height="36" Width="36"
-							  Theme="{StaticResource MaterialOutlineToggleButton}"
-							  IsChecked="{Binding Path=IsPaneOpen, Mode=TwoWay, ElementName=MainSplitView}">
-					<PathIcon Data="{StaticResource MenuIcon}"/>
-				</ToggleButton>
+    <SplitView x:Name="MainSplitView"
+               IsPaneOpen="True"
+               OpenPaneLength="192"
+               CompactPaneLength="64"
+               DisplayMode="CompactInline">
+        <SplitView.Pane>
+            <DockPanel LastChildFill="False" Margin="8">
+                <ToggleButton Classes="primary" DockPanel.Dock="Top" Margin="6 0 6 14" HorizontalAlignment="Left"
+                              Height="36" Width="36"
+                              Theme="{StaticResource MaterialOutlineToggleButton}"
+                              IsChecked="{Binding Path=IsPaneOpen, Mode=TwoWay, ElementName=MainSplitView}">
+                    <PathIcon Data="{StaticResource MenuIcon}" />
+                </ToggleButton>
 
-				<controls:MenuButton DockPanel.Dock="Top"
-									 x:Name="MyModsButton"
-									 GroupName="SideBar"
-									 Command="{Binding Path=ShowInstalledAddonsCommand}"
-									 Height="50"
-									 Icon="{StaticResource HomeStorageIcon}"
-									 Text="My Mods"
-									 IsChecked="{Binding Path=IsMyModsButtonChecked}"
-									 IsEnabled="{Binding Source={x:Static local:AppSettings.Instance}, Path=AddonsDirectory, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
-									 IsTextVisible="{Binding Path=IsPaneOpen, Mode=TwoWay, ElementName=MainSplitView}"/>
-
-				<controls:MenuButton DockPanel.Dock="Top"
-									 x:Name="BrowseButton"
-									 GroupName="SideBar"
-									 Command="{Binding Path=ShowBrowseCommand}"
-									 Height="50"
-									 Icon="{StaticResource BrowseIcon}"
-									 Text="Browse"
-									 IsChecked="{Binding Path=IsBrowseButtonChecked}"
+                <controls:MenuButton DockPanel.Dock="Top"
+                                     x:Name="MyModsButton"
+                                     GroupName="SideBar"
+                                     Command="{Binding Path=ShowInstalledAddonsCommand}"
+                                     Height="50"
+                                     Icon="{StaticResource HomeStorageIcon}"
+                                     Text="My Mods"
+                                     IsChecked="{Binding Path=IsMyModsButtonChecked}"
                                      IsEnabled="{Binding Source={x:Static local:AppSettings.Instance}, Path=AddonsDirectory, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
-									 IsTextVisible="{Binding Path=IsPaneOpen, Mode=TwoWay, ElementName=MainSplitView}"/>
+                                     IsTextVisible="{Binding Path=IsPaneOpen, Mode=TwoWay, ElementName=MainSplitView}" />
 
-				<controls:MenuButton DockPanel.Dock="Bottom"
-									 x:Name="SettingsButton"
-									 GroupName="SideBar"
-									 Command="{Binding Path=ShowSettingsCommand}"
-									 Height="50"
-									 Icon="{StaticResource CogIcon}"
-									 Text="Settings"
-									 IsChecked="{Binding Path=IsSettingsButtonChecked}"
-									 IsTextVisible="{Binding Path=IsPaneOpen, Mode=TwoWay, ElementName=MainSplitView}"/>
-			</DockPanel>
-		</SplitView.Pane>
-		<SplitView.Content>
-			<Border Background="#383838" CornerRadius="16 0 0 0">
-				<rxui:RoutedViewHost Router="{Binding Path=Router}" Margin="28 14 28 28">
-					<rxui:RoutedViewHost.DefaultContent>
-                        <ProgressBar IsIndeterminate="True" Classes="circular"
-									 VerticalAlignment="Center" HorizontalAlignment="Center"
-                                     Height="100" Width="100"
-                                     Margin="50"/>
-					</rxui:RoutedViewHost.DefaultContent>
-				</rxui:RoutedViewHost>
-			</Border>
-		</SplitView.Content>
-	</SplitView>
+                <controls:MenuButton DockPanel.Dock="Top"
+                                     x:Name="BrowseButton"
+                                     GroupName="SideBar"
+                                     Command="{Binding Path=ShowBrowseCommand}"
+                                     Height="50"
+                                     Icon="{StaticResource BrowseIcon}"
+                                     Text="Browse"
+                                     IsChecked="{Binding Path=IsBrowseButtonChecked}"
+                                     IsEnabled="{Binding Source={x:Static local:AppSettings.Instance}, Path=AddonsDirectory, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
+                                     IsTextVisible="{Binding Path=IsPaneOpen, Mode=TwoWay, ElementName=MainSplitView}" />
+
+                <controls:MenuButton DockPanel.Dock="Bottom"
+                                     x:Name="SettingsButton"
+                                     GroupName="SideBar"
+                                     Command="{Binding Path=ShowSettingsCommand}"
+                                     Height="50"
+                                     Icon="{StaticResource CogIcon}"
+                                     Text="Settings"
+                                     IsChecked="{Binding Path=IsSettingsButtonChecked}"
+                                     IsTextVisible="{Binding Path=IsPaneOpen, Mode=TwoWay, ElementName=MainSplitView}" />
+            </DockPanel>
+        </SplitView.Pane>
+        <SplitView.Content>
+            <Border Background="#383838" CornerRadius="16 0 0 0">
+                <Grid RowDefinitions="Auto *">
+                    <ItemsControl Grid.Row="0"
+                                  ItemsSource="{Binding RecoveryNotices}"
+                                  IsVisible="{Binding HasRecoveryNotices}"
+                                  Margin="28 14 28 0">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Border Background="#5D0E41" CornerRadius="8" Padding="12 8" Margin="0 0 0 8">
+                                    <StackPanel Spacing="4">
+                                        <TextBlock Text="{Binding Message}" TextWrapping="Wrap"
+                                                   FontWeight="SemiBold" Foreground="White" />
+                                        <TextBlock Text="{Binding Details}" TextWrapping="Wrap"
+                                                   FontSize="12" Foreground="#CCCCCC"
+                                                   IsVisible="{Binding Details, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+                                    </StackPanel>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+
+                    <rxui:RoutedViewHost Grid.Row="1"
+                                         Router="{Binding Path=Router}" Margin="28 14 28 28">
+                        <rxui:RoutedViewHost.DefaultContent>
+                            <ProgressBar IsIndeterminate="True" Classes="circular"
+                                         VerticalAlignment="Center" HorizontalAlignment="Center"
+                                         Height="100" Width="100"
+                                         Margin="50" />
+                        </rxui:RoutedViewHost.DefaultContent>
+                    </rxui:RoutedViewHost>
+                </Grid>
+            </Border>
+        </SplitView.Content>
+    </SplitView>
 </controls:MetroWindow>
