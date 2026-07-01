@@ -1,13 +1,13 @@
-using Avalonia.ReactiveUI;
+using ReactiveUI;
+using ReactiveUI.Avalonia;
 using SpellCrafter.ViewModels;
 
-namespace SpellCrafter.Views
+namespace SpellCrafter.Views;
+
+public partial class AddonsOverviewView : ReactiveUserControl<AddonsOverviewViewModel>
 {
-    public partial class AddonsOverviewView : ReactiveUserControl<AddonsOverviewViewModel>
+    public AddonsOverviewView()
     {
-        public AddonsOverviewView()
-        {
-            InitializeComponent();
-        }
+        InitializeComponent();
     }
 }

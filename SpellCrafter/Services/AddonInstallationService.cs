@@ -50,9 +50,7 @@ public sealed class AddonInstallationService : IAddonInstallationService
                 recursive &&
                 !result.CompletedAfterCancellation &&
                 !cancellationToken.IsCancellationRequested)
-            {
                 await InstallDependenciesAsync(addon, installationMethod, progress, cancellationToken);
-            }
 
             return result;
         }
@@ -83,9 +81,7 @@ public sealed class AddonInstallationService : IAddonInstallationService
                 recursive &&
                 !result.CompletedAfterCancellation &&
                 !cancellationToken.IsCancellationRequested)
-            {
                 await InstallDependenciesAsync(addon, addon.InstallationMethod, progress, cancellationToken);
-            }
 
             return result;
         }
@@ -114,9 +110,7 @@ public sealed class AddonInstallationService : IAddonInstallationService
                 recursive &&
                 !result.CompletedAfterCancellation &&
                 !cancellationToken.IsCancellationRequested)
-            {
                 await InstallDependenciesAsync(addon, addon.InstallationMethod, progress, cancellationToken);
-            }
 
             return result;
         }
@@ -223,7 +217,7 @@ public sealed class AddonInstallationService : IAddonInstallationService
                     "Installation completed after cancellation was requested.");
                 return InstallResult.Success(
                     $"Installation of '{addon.Name}' completed after cancellation was requested.",
-                    completedAfterCancellation: true);
+                    true);
             }
 
             ReportProgress(progress, addon.Name, AddonOperationType.Install, InstallProgressStage.Completed,
@@ -366,7 +360,7 @@ public sealed class AddonInstallationService : IAddonInstallationService
                     $"{operationName} completed after cancellation was requested.");
                 return InstallResult.Success(
                     $"{operationName} of '{addon.Name}' completed after cancellation was requested.",
-                    completedAfterCancellation: true);
+                    true);
             }
 
             ReportProgress(progress, addon.Name, operationName, InstallProgressStage.Completed,
@@ -530,7 +524,7 @@ public sealed class AddonInstallationService : IAddonInstallationService
             if (cancellationToken.IsCancellationRequested)
                 return InstallResult.Success(
                     $"Delete of '{addon.Name}' completed after cancellation was requested.",
-                    completedAfterCancellation: true);
+                    true);
 
             return InstallResult.Success();
         }
@@ -748,7 +742,7 @@ public sealed class AddonInstallationService : IAddonInstallationService
         string stagingDirectory,
         string expectedAddonFolder)
     {
-        using var archive = ArchiveFactory.Open(archivePath);
+        using var archive = ArchiveFactory.OpenArchive(archivePath);
 
         var entries = archive.Entries
             .Where(entry => !entry.IsDirectory)

@@ -1,16 +1,16 @@
 using SpellCrafter.ViewModels;
-using Avalonia.ReactiveUI;
+using ReactiveUI;
+using ReactiveUI.Avalonia;
 
-namespace SpellCrafter.Views
+namespace SpellCrafter.Views;
+
+public partial class SettingsView : ReactiveUserControl<SettingsViewModel>
 {
-    public partial class SettingsView : ReactiveUserControl<SettingsViewModel>
+    public SettingsView()
     {
-        public SettingsView()
-        {
-            InitializeComponent();
+        InitializeComponent();
 
-            var vm = new SettingsViewModel();
-            DataContext = vm;
-        }
+        var vm = new SettingsViewModel();
+        DataContext = vm;
     }
 }

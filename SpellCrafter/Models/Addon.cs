@@ -1,4 +1,5 @@
 ﻿using System;
+using Avalonia.Input.Platform;
 using ReactiveUI;
 using ReactiveUI.Fody.Helpers;
 using SpellCrafter.Enums;

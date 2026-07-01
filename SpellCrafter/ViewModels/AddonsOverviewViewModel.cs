@@ -11,122 +11,114 @@ using SpellCrafter.Enums;
 using System.Reactive.Concurrency;
 using System.Threading;
 
-namespace SpellCrafter.ViewModels
+namespace SpellCrafter.ViewModels;
+
+public class AddonsOverviewViewModel : ViewModelBase
 {
-    public class AddonsOverviewViewModel : ViewModelBase
+    private RangedObservableCollection<Addon> _modsSource = [];
+
+    protected RangedObservableCollection<Addon> ModsSource
     {
-        private RangedObservableCollection<Addon> _modsSource = [];
-        protected RangedObservableCollection<Addon> ModsSource
+        get => _modsSource;
+        set
         {
-            get => _modsSource;
-            set
-            {
-                _modsSource = value;
-                this.WhenAnyValue(x => x._modsSource.Count)
-                    .Throttle(TimeSpan.FromMilliseconds(100), RxApp.MainThreadScheduler)
-                    .Subscribe(_ => FilterMods());
-                FilterMods();
-            }
+            _modsSource = value;
+            this.WhenAnyValue(x => x._modsSource.Count)
+                .Throttle(TimeSpan.FromMilliseconds(100), RxSchedulers.MainThreadScheduler)
+                .Subscribe(_ => FilterMods());
+            FilterMods();
         }
+    }
 
-        private bool _isFiltered;
-        [Reactive] public bool IsFiltering { get; set; }
-        public virtual bool IsScanning => false;
+    private bool _isFiltered;
+    [Reactive] public bool IsFiltering { get; set; }
+    public virtual bool IsScanning => false;
 
-        [Reactive] public RangedObservableCollection<Addon> DisplayedMods { get; set; } = [];
-        [Reactive] public string ModsFilter { get; set; } = string.Empty;
-        [Reactive] public bool BrowseMode { get; set; }
-        [Reactive] public Addon? DataGridModsSelectedItem { get; set; }
-        public bool IsAddonsDisplayed => !_isFiltered || DisplayedMods.Count > 0;
+    [Reactive] public RangedObservableCollection<Addon> DisplayedMods { get; set; } = [];
+    [Reactive] public string ModsFilter { get; set; } = string.Empty;
+    [Reactive] public bool BrowseMode { get; set; }
+    [Reactive] public Addon? DataGridModsSelectedItem { get; set; }
+    public bool IsAddonsDisplayed => !_isFiltered || DisplayedMods.Count > 0;
 
-        public AsyncRelayCommand UpdateAllCommand { get; }
-        public RelayCommand FilterModsCommand { get; }
-        public RelayCommand RefreshModsCommand { get; }
+    public AsyncRelayCommand UpdateAllCommand { get; }
+    public RelayCommand FilterModsCommand { get; }
+    public RelayCommand RefreshModsCommand { get; }
 
-        public AddonsOverviewViewModel(bool browseMode)
+    public AddonsOverviewViewModel(bool browseMode)
+    {
+        BrowseMode = browseMode;
+
+        UpdateAllCommand = new AsyncRelayCommand
+        (async _ => await UpdateAll()
+        );
+        FilterModsCommand = new RelayCommand
+        (_ => FilterMods()
+        );
+        RefreshModsCommand = new RelayCommand
+        (_ => RescanMods()
+        );
+
+        this.WhenAnyValue(x => x.DisplayedMods.Count)
+            .Subscribe(_ => this.RaisePropertyChanged(nameof(IsAddonsDisplayed)));
+    }
+
+    private async Task UpdateAll()
+    {
+        Debug.WriteLine("Updating all outdated addons");
+
+        var oldIsFiltering = IsFiltering;
+        IsFiltering = true;
+
+        try
         {
-            BrowseMode = browseMode;
-
-            UpdateAllCommand = new AsyncRelayCommand
-            (
-                async _ => await UpdateAll()
-            );
-            FilterModsCommand = new RelayCommand
-            (
-                _ => FilterMods()
-            );
-            RefreshModsCommand = new RelayCommand
-            (
-                _ => RescanMods()
-            );
-
-            this.WhenAnyValue(x => x.DisplayedMods.Count)
-                .Subscribe(_ => this.RaisePropertyChanged(nameof(IsAddonsDisplayed)));
+            foreach (var addon in ModsSource)
+                if (addon.State is AddonState.Outdated or AddonState.InstallationError)
+                {
+                    var result = await addon.Update(false);
+                    if (!result.Succeeded)
+                        Debug.WriteLine($"Failed to update {addon.Name}: {result.ErrorMessage}");
+                }
         }
-
-        private async Task UpdateAll()
+        finally
         {
-            Debug.WriteLine("Updating all outdated addons");
-
-            var oldIsFiltering = IsFiltering;
-            IsFiltering = true;
-
-            try
-            {
-                foreach (var addon in ModsSource)
-                {
-                    if (addon.State is AddonState.Outdated or AddonState.InstallationError)
-                    {
-                        var result = await addon.Update(false);
-                        if (!result.Succeeded)
-                            Debug.WriteLine($"Failed to update {addon.Name}: {result.ErrorMessage}");
-                    }
-                }
-            }
-            finally
-            {
-                IsFiltering = oldIsFiltering;
-            }
+            IsFiltering = oldIsFiltering;
         }
+    }
 
-        protected async void FilterMods()
+    protected async void FilterMods()
+    {
+        Debug.WriteLine("Filtering displayed addons");
+
+        //if (IsFiltering) return;
+
+        IsFiltering = true;
+
+        await Task.Run(() =>
         {
-            Debug.WriteLine("Filtering displayed addons");
+            var filter = ModsFilter.Replace(" ", "");
+            List<Addon> filteredAddons;
+            if (!string.IsNullOrEmpty(filter))
+                filteredAddons = ModsSource.Where(addon =>
+                    addon.Name.Replace(" ", "").Contains(filter, StringComparison.OrdinalIgnoreCase) ||
+                    addon.Categories.Any(category =>
+                        category.Name.Replace(" ", "").Contains(filter, StringComparison.OrdinalIgnoreCase)) || // TODO move categories and authors to filters
+                    addon.Authors.Any(author => author.Name.Replace(" ", "").Contains(filter, StringComparison.OrdinalIgnoreCase))
+                ).ToList();
+            else
+                filteredAddons = [.. ModsSource];
 
-            //if (IsFiltering) return;
-
-            IsFiltering = true;
-
-            await Task.Run(() =>
+            RxSchedulers.MainThreadScheduler.Schedule(() =>
             {
-                var filter = ModsFilter.Replace(" ", "");
-                List<Addon> filteredAddons;
-                if (!string.IsNullOrEmpty(filter))
-                {
-                    filteredAddons = ModsSource.Where(addon =>
-                        addon.Name.Replace(" ", "").Contains(filter, StringComparison.OrdinalIgnoreCase) ||
-                        addon.Categories.Any(category => category.Name.Replace(" ", "").Contains(filter, StringComparison.OrdinalIgnoreCase)) || // TODO move categories and authors to filters
-                        addon.Authors.Any(author => author.Name.Replace(" ", "").Contains(filter, StringComparison.OrdinalIgnoreCase))
-                    ).ToList();
-                }
-                else
-                {
-                    filteredAddons = [.. ModsSource];
-                }
-
-                RxApp.MainThreadScheduler.Schedule(() =>
-                {
-                    DisplayedMods.Refresh(filteredAddons, false);
-                    IsFiltering = false;
-                });
+                DisplayedMods.Refresh(filteredAddons, false);
+                IsFiltering = false;
             });
+        });
 
-            _isFiltered = true;
-        }
+        _isFiltered = true;
+    }
 
-        protected virtual void RescanMods()
-        {
-            Debug.WriteLine("Rescanning addons");
-        }
+    protected virtual void RescanMods()
+    {
+        Debug.WriteLine("Rescanning addons");
     }
 }

@@ -10,7 +10,7 @@ namespace SpellCrafter.Tests.IntegrationTests;
 /// Tests that AddonInstallationService correctly rolls back partial operations
 /// when failures or cancellation occur at various phases.
 /// </summary>
-[Collection("AddonInstallationService")] // Serialize to avoid SemaphoreSlim conflicts
+[Collection("EnvironmentStateCollection")] // Serialize with other env-modifying tests
 public sealed class AddonInstallationServiceRollbackTests : IDisposable
 {
     private readonly TempDirectoryFixture _tmp;

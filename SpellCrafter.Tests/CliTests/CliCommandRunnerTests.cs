@@ -2,7 +2,7 @@ using SpellCrafter.Cli;
 
 namespace SpellCrafter.Tests.CliTests;
 
-[Collection("CLI")] // Serialize to avoid Environment.CurrentDirectory conflicts
+[Collection("EnvironmentStateCollection")] // Serialize with other env-modifying tests
 public sealed class CliCommandRunnerTests
 {
     [Fact]
@@ -866,4 +866,13 @@ public sealed class CliCommandRunnerTests
             Directory.Delete(tempDir, true);
         }
     }
+}
+
+/// <summary>
+/// Collection definition that serializes all tests that modify <see cref="Environment.CurrentDirectory"/>
+/// or <see cref="AppSettings.Instance"/>. Without this, parallel collections race on these global statics.
+/// </summary>
+[CollectionDefinition("EnvironmentStateCollection", DisableParallelization = true)]
+public sealed class EnvironmentStateCollectionDefinition
+{
 }

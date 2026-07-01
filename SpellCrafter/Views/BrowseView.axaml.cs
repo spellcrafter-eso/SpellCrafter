@@ -1,13 +1,13 @@
-using Avalonia.ReactiveUI;
+using ReactiveUI;
+using ReactiveUI.Avalonia;
 using SpellCrafter.ViewModels;
 
-namespace SpellCrafter.Views
+namespace SpellCrafter.Views;
+
+public partial class BrowseView : ReactiveUserControl<BrowseViewModel>
 {
-    public partial class BrowseView : ReactiveUserControl<BrowseViewModel>
+    public BrowseView()
     {
-        public BrowseView()
-        {
-            InitializeComponent();
-        }
+        InitializeComponent();
     }
 }

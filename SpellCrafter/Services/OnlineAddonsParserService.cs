@@ -338,7 +338,7 @@ public partial class OnlineAddonsParserService : IArchiveDownloader
     {
         try
         {
-            using var archive = ArchiveFactory.Open(archivePath);
+            using var archive = ArchiveFactory.OpenArchive(archivePath);
 
             var manifestName =
                 archive.Entries

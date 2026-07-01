@@ -10,7 +10,7 @@ namespace SpellCrafter.Tests.IntegrationTests;
 /// Tests that AddonInstallationService correctly rejects archives with unsafe or
 /// invalid structures, never writing outside the expected target directory.
 /// </summary>
-[Collection("AddonInstallationService")] // Serialize to avoid SemaphoreSlim conflicts
+[Collection("EnvironmentStateCollection")] // Serialize with other env-modifying tests
 public sealed class AddonInstallationServiceArchiveSafetyTests : IDisposable
 {
     private readonly TempDirectoryFixture _tmp;

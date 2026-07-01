@@ -19,7 +19,7 @@ namespace SpellCrafter.Tests.IntegrationTests;
 /// The static AppSettings.Instance.AddonsDirectory is set per test via Environment.CurrentDirectory
 /// pointing at a temp directory.
 /// </summary>
-[Collection("AddonInstallationService")] // Serialize to avoid SemaphoreSlim conflicts
+[Collection("EnvironmentStateCollection")] // Serialize with other env-modifying tests
 public sealed class AddonInstallationServiceTests : IDisposable
 {
     private readonly TempDirectoryFixture _tmp;
