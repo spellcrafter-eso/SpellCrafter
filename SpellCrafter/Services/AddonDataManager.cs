@@ -134,7 +134,7 @@ public static class AddonDataManager
                 .Select(aa => authors[aa.AuthorId])
                 .ToList();
 
-            var addon = new Addon(AddonServices.InstallationService)
+            var addon = new Addon(AddonServices.InstallationService, AddonServices.OperationSubmissionService)
             {
                 CommonAddonId = localAddon.CommonAddonId,
                 LocalAddonId = localAddon.Id,
@@ -173,7 +173,7 @@ public static class AddonDataManager
                 .Select(ac => categories[ac.CategoryId])
                 .ToList();
 
-            var addon = new Addon(AddonServices.InstallationService)
+            var addon = new Addon(AddonServices.InstallationService, AddonServices.OperationSubmissionService)
             {
                 CommonAddonId = onlineAddon.CommonAddonId,
                 OnlineAddonId = onlineAddon.Id,

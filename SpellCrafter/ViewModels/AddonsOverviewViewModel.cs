@@ -1,21 +1,43 @@
-﻿using System;
-using ReactiveUI.Fody.Helpers;
-using SpellCrafter.Models;
+using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
+using System.Reactive.Concurrency;
+using System.Reactive.Disposables;
 using System.Reactive.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using ReactiveUI;
+using ReactiveUI.Fody.Helpers;
 using SpellCrafter.Enums;
-using System.Reactive.Concurrency;
-using System.Threading;
+using SpellCrafter.Models;
+using SpellCrafter.Services;
 
 namespace SpellCrafter.ViewModels;
 
-public class AddonsOverviewViewModel : ViewModelBase
+// Test seam: allows tests to override the main thread scheduler without Avalonia dispatcher.
+// Defaults to RxSchedulers.MainThreadScheduler which is set by Avalonia platform initialization.
+[System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Never)]
+internal static class AddonsScheduler
+{
+    public static IScheduler MainThread { get; set; } = RxSchedulers.MainThreadScheduler;
+}
+
+// Test seam: disables the periodic queue refresh timer for tests that use AddonsScheduler.MainThread.
+// The periodic timer uses Observable.Interval which requires a scheduler with timing support
+// (e.g. DefaultScheduler). Test schedulers like CurrentThreadScheduler do not support timers.
+[System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Never)]
+internal static class AddonsTestHooks
+{
+    public static bool DisablePeriodicRefresh { get; set; }
+}
+
+public class AddonsOverviewViewModel : ViewModelBase, IDisposable
 {
     private RangedObservableCollection<Addon> _modsSource = [];
+    private readonly IDisposable _queueRefreshSubscription;
+    private bool _disposed;
+    private int _isQueueStateRefreshRunning;
 
     protected RangedObservableCollection<Addon> ModsSource
     {
@@ -24,9 +46,10 @@ public class AddonsOverviewViewModel : ViewModelBase
         {
             _modsSource = value;
             this.WhenAnyValue(x => x._modsSource.Count)
-                .Throttle(TimeSpan.FromMilliseconds(100), RxSchedulers.MainThreadScheduler)
+                .Throttle(TimeSpan.FromMilliseconds(100), AddonsScheduler.MainThread)
                 .Subscribe(_ => FilterMods());
             FilterMods();
+            _ = RefreshQueueStateAsync();
         }
     }
 
@@ -60,6 +83,27 @@ public class AddonsOverviewViewModel : ViewModelBase
 
         this.WhenAnyValue(x => x.DisplayedMods.Count)
             .Subscribe(_ => this.RaisePropertyChanged(nameof(IsAddonsDisplayed)));
+
+        _ = RefreshQueueStateAsync();
+
+        if (AddonsTestHooks.DisablePeriodicRefresh)
+        {
+            _queueRefreshSubscription = Disposable.Empty;
+        }
+        else
+        {
+            _queueRefreshSubscription = Observable.Interval(TimeSpan.FromSeconds(1), AddonsScheduler.MainThread)
+                .Subscribe(__ => { _ = RefreshQueueStateAsync(); });
+        }
+    }
+
+    public void Dispose()
+    {
+        if (_disposed)
+            return;
+
+        _queueRefreshSubscription.Dispose();
+        _disposed = true;
     }
 
     private async Task UpdateAll()
@@ -74,9 +118,9 @@ public class AddonsOverviewViewModel : ViewModelBase
             foreach (var addon in ModsSource)
                 if (addon.State is AddonState.Outdated or AddonState.InstallationError)
                 {
-                    var result = await addon.Update(false);
-                    if (!result.Succeeded)
-                        Debug.WriteLine($"Failed to update {addon.Name}: {result.ErrorMessage}");
+                    var result = await addon.QueueUpdate(false);
+                    if (!result.Accepted)
+                        Debug.WriteLine($"Failed to queue update for {addon.Name}: {result.RejectionReason}");
                 }
         }
         finally
@@ -107,7 +151,7 @@ public class AddonsOverviewViewModel : ViewModelBase
             else
                 filteredAddons = [.. ModsSource];
 
-            RxSchedulers.MainThreadScheduler.Schedule(() =>
+            AddonsScheduler.MainThread.Schedule(() =>
             {
                 DisplayedMods.Refresh(filteredAddons, false);
                 IsFiltering = false;
@@ -120,5 +164,69 @@ public class AddonsOverviewViewModel : ViewModelBase
     protected virtual void RescanMods()
     {
         Debug.WriteLine("Rescanning addons");
+    }
+
+    /// <summary>
+    /// For testing: replaces the ModsSource without going through a protected property.
+    /// </summary>
+    internal void SetModsSourceForTesting(RangedObservableCollection<Addon> source)
+    {
+        ModsSource = source;
+    }
+
+    /// <summary>
+    /// Returns the queue store used by <see cref="RefreshQueueStateAsync"/>.
+    /// Virtual to allow tests to inject a different store.
+    /// </summary>
+    internal virtual IAddonOperationQueueStore GetQueueStore() => AddonServices.QueueStore;
+
+    internal async Task RefreshQueueStateAsync(CancellationToken cancellationToken = default)
+    {
+        if (_disposed)
+            return;
+
+        if (Interlocked.Exchange(ref _isQueueStateRefreshRunning, 1) == 1)
+            return;
+
+        try
+        {
+            var operations = await GetQueueStore().GetAllAsync(cancellationToken);
+            var activeByAddon = operations
+                .Where(o => o.Status is QueueOperationStatus.Pending or QueueOperationStatus.InProgress)
+                .GroupBy(o => o.AddonCommonId)
+                .ToDictionary(
+                    g => g.Key,
+                    g => g
+                        .OrderBy(o => o.Status == QueueOperationStatus.InProgress ? 0 : 1)
+                        .ThenBy(o => o.RequestTime)
+                        .First());
+
+            if (_disposed)
+                return;
+
+            AddonsScheduler.MainThread.Schedule(() =>
+            {
+                if (_disposed)
+                    return;
+
+                foreach (var addon in ModsSource)
+                    if (activeByAddon.TryGetValue(addon.CommonAddonId, out var operation))
+                        addon.SetQueuedOperation(operation);
+                    else
+                        addon.ClearQueuedOperation();
+            });
+        }
+        catch (OperationCanceledException)
+        {
+            // Cancellation is expected during shutdown or refresh cancellation.
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"[RefreshQueueState] Exception: {ex.Message}");
+        }
+        finally
+        {
+            Interlocked.Exchange(ref _isQueueStateRefreshRunning, 0);
+        }
     }
 }

@@ -13,6 +13,8 @@ namespace SpellCrafter.Cli;
 
 internal static class CliCommandRunner
 {
+    private const string QueueCancellationMessage = "Operation was canceled via queue management.";
+
     public static async Task<int> RunAsync(
         string[] args,
         TextWriter outputWriter,
@@ -91,6 +93,7 @@ internal static class CliCommandRunner
             "reinstall" or "repair" => await RunReinstallAsync(subArgs, outputWriter, errorWriter, progress, cancellationToken, globalOptions),
             "update" or "upgrade" => await RunUpdateAsync(subArgs, outputWriter, errorWriter, progress, cancellationToken, globalOptions),
             "delete" or "remove" or "uninstall" or "rm" => await RunDeleteAsync(subArgs, outputWriter, errorWriter, progress, cancellationToken, globalOptions),
+            "queue" or "q" => await RunQueueAsync(subArgs, outputWriter, errorWriter, cancellationToken, globalOptions),
             _ => UnknownCommand(command, outputWriter, errorWriter)
         };
     }
@@ -179,6 +182,9 @@ Commands:
   reinstall <name>          Reinstall an addon
   update [<name>|--all]     Update addon(s)
   delete <name>             Delete/remove an addon
+  queue list                List queued operations
+  queue cancel <id>         Cancel a queued operation by its ID
+  queue clear --completed|--failed|--canceled
 
 Run 'spellcrafter <command> --help' for command-specific options.");
     }
@@ -209,6 +215,17 @@ Run 'spellcrafter <command> --help' for command-specific options.");
         var dirValid = configured && AddonsDirectoryValidator.IsValidAddonsDirectory(AppSettings.Instance.AddonsDirectory);
 
         var notices = AddonOperationRecoveryService.Notices;
+        IReadOnlyList<QueuedOperation>? queueOperations = null;
+        string? queueError = null;
+
+        try
+        {
+            queueOperations = AddonServices.QueueStore.GetAllAsync().GetAwaiter().GetResult();
+        }
+        catch (Exception ex)
+        {
+            queueError = ex.Message;
+        }
 
         if (globalOptions.Json)
         {
@@ -221,8 +238,19 @@ Run 'spellcrafter <command> --help' for command-specific options.");
                 onlineCount,
                 outdatedCount,
                 installationErrorCount = errorCount,
-                operationInProgress = Addon.IsOperationInProgress,
-                recoveryNoticeCount = notices.Count
+                // Note: global operation lock has been removed; operations are now queued per-resource.
+                recoveryNoticeCount = notices.Count,
+                queue = new
+                {
+                    unavailable = queueError,
+                    total = queueOperations?.Count ?? 0,
+                    pending = queueOperations?.Count(o => o.Status == QueueOperationStatus.Pending) ?? 0,
+                    inProgress = queueOperations?.Count(o => o.Status == QueueOperationStatus.InProgress) ?? 0,
+                    completed = queueOperations?.Count(o => o.Status == QueueOperationStatus.Completed) ?? 0,
+                    failed = queueOperations?.Count(o => o.Status == QueueOperationStatus.Failed) ?? 0,
+                    canceled = queueOperations?.Count(o => o.Status == QueueOperationStatus.Canceled) ?? 0,
+                    cancelRequested = queueOperations?.Count(o => o.CancelRequested && o.Status == QueueOperationStatus.InProgress) ?? 0
+                }
             };
             output.WriteLine(CliOutput.ToJson(status));
         }
@@ -247,6 +275,23 @@ Run 'spellcrafter <command> --help' for command-specific options.");
                 output.WriteLine($"  - {notice.Message}");
                 if (notice.BackupPath != null)
                     output.WriteLine($"    Backup: {notice.BackupPath}");
+            }
+
+            output.WriteLine();
+            output.WriteLine("Queue:");
+            if (queueOperations != null)
+            {
+                output.WriteLine($"  Total:            {queueOperations.Count}");
+                output.WriteLine($"  Pending:          {queueOperations.Count(o => o.Status == QueueOperationStatus.Pending)}");
+                output.WriteLine($"  In Progress:      {queueOperations.Count(o => o.Status == QueueOperationStatus.InProgress)}");
+                output.WriteLine($"  Completed:        {queueOperations.Count(o => o.Status == QueueOperationStatus.Completed)}");
+                output.WriteLine($"  Failed:           {queueOperations.Count(o => o.Status == QueueOperationStatus.Failed)}");
+                output.WriteLine($"  Canceled:         {queueOperations.Count(o => o.Status == QueueOperationStatus.Canceled)}");
+                output.WriteLine($"  Cancel Requested: {queueOperations.Count(o => o.CancelRequested && o.Status == QueueOperationStatus.InProgress)}");
+            }
+            else
+            {
+                output.WriteLine($"  (unavailable: {queueError})");
             }
         }
 
@@ -794,6 +839,9 @@ Run 'spellcrafter <command> --help' for command-specific options.");
 
         var recursive = flags.ContainsKey("no-recursive") ? false : true;
 
+        if (!await TryAcquireOperationExecutorLeaseAsync(error, cancellationToken))
+            return CliExitCodes.UserError;
+
         error.WriteLine($"Installing '{addon.Name}'...");
         var result = await addon.Install(
             AddonInstallationMethod.SpellCrafter,
@@ -830,6 +878,9 @@ Run 'spellcrafter <command> --help' for command-specific options.");
         }
 
         var recursive = flags.ContainsKey("no-recursive") ? false : true;
+
+        if (!await TryAcquireOperationExecutorLeaseAsync(error, cancellationToken))
+            return CliExitCodes.UserError;
 
         error.WriteLine($"Reinstalling '{addon.Name}'...");
         var result = await addon.Reinstall(recursive, progress, cancellationToken);
@@ -868,6 +919,9 @@ Run 'spellcrafter <command> --help' for command-specific options.");
 
             var recursive = flags.ContainsKey("no-recursive") ? false : true;
 
+            if (!await TryAcquireOperationExecutorLeaseAsync(error, cancellationToken))
+                return CliExitCodes.UserError;
+
             error.WriteLine($"Updating '{addon.Name}'...");
             var result = await addon.Update(recursive, progress, cancellationToken);
 
@@ -893,6 +947,9 @@ Run 'spellcrafter <command> --help' for command-specific options.");
             output.WriteLine("All addons are up to date.");
             return CliExitCodes.Success;
         }
+
+        if (!await TryAcquireOperationExecutorLeaseAsync(error, cancellationToken))
+            return CliExitCodes.UserError;
 
         error.WriteLine($"Updating {toUpdate.Count} addon(s)...");
 
@@ -959,10 +1016,176 @@ Run 'spellcrafter <command> --help' for command-specific options.");
             return CliExitCodes.UserError;
         }
 
+        if (!await TryAcquireOperationExecutorLeaseAsync(error, cancellationToken))
+            return CliExitCodes.UserError;
+
         error.WriteLine($"Deleting '{addon.Name}'...");
         var result = await addon.Delete(progress, cancellationToken);
 
         return ReportResult(result, addon.Name, "delete", output, error);
+    }
+
+    // ---- Queue ----
+
+    private static async Task<int> RunQueueAsync(
+        List<string> args,
+        TextWriter output,
+        TextWriter error,
+        CancellationToken cancellationToken,
+        GlobalOptions globalOptions)
+    {
+        var subcommand = args.Count > 0 ? args[0].ToLowerInvariant() : "list";
+
+        return subcommand switch
+        {
+            "list" or "ls" => await RunQueueListAsync(output, error, cancellationToken, globalOptions),
+            "cancel" or "rm" or "remove" => await RunQueueCancelAsync(args.Skip(1).ToList(), output, error, cancellationToken, globalOptions),
+            "clear" => await RunQueueClearAsync(args.Skip(1).ToList(), output, error, cancellationToken, globalOptions),
+            _ => UnknownQueueCommand(subcommand, output, error)
+        };
+    }
+
+    private static async Task<int> RunQueueListAsync(
+        TextWriter output,
+        TextWriter error,
+        CancellationToken cancellationToken,
+        GlobalOptions globalOptions)
+    {
+        var operations = await AddonServices.QueueStore.GetAllAsync(cancellationToken);
+
+        if (operations.Count == 0)
+        {
+            output.WriteLine("Queue is empty.");
+            return CliExitCodes.Success;
+        }
+
+        if (globalOptions.Json)
+            output.WriteLine(CliOutput.ToJson(operations));
+        else
+            output.WriteLine(CliOutput.FormatQueueOperationTable(operations));
+
+        return CliExitCodes.Success;
+    }
+
+    private static async Task<int> RunQueueCancelAsync(
+        List<string> args,
+        TextWriter output,
+        TextWriter error,
+        CancellationToken cancellationToken,
+        GlobalOptions globalOptions)
+    {
+        if (args.Count == 0)
+        {
+            error.WriteLine("Usage: queue cancel <operation-id>");
+            return CliExitCodes.UserError;
+        }
+
+        if (!Guid.TryParse(args[0], out var operationId))
+        {
+            error.WriteLine($"Invalid operation ID: '{args[0]}'. Expected a GUID.");
+            return CliExitCodes.UserError;
+        }
+
+        var operations = await AddonServices.QueueStore.GetAllAsync(cancellationToken);
+        var operation = operations.FirstOrDefault(o => o.OperationId == operationId);
+        if (operation == null)
+        {
+            error.WriteLine($"Queued operation '{operationId}' was not found.");
+            return CliExitCodes.UserError;
+        }
+
+        if (operation.Status is QueueOperationStatus.Completed or QueueOperationStatus.Failed or QueueOperationStatus.Canceled)
+        {
+            error.WriteLine($"Queued operation '{operationId}' is already {operation.Status} and cannot be canceled.");
+            return CliExitCodes.UserError;
+        }
+
+        var requested = await AddonServices.QueueStore.RequestCancellationAsync(
+            operationId, QueueCancellationMessage, cancellationToken);
+
+        if (!requested)
+        {
+            error.WriteLine($"Queued operation '{operationId}' could not be canceled because it is no longer pending or in progress.");
+            return CliExitCodes.UserError;
+        }
+
+        var updatedOperations = await AddonServices.QueueStore.GetAllAsync(cancellationToken);
+        var updatedOperation = updatedOperations.FirstOrDefault(o => o.OperationId == operationId);
+        var cancelRequested = updatedOperation is
+        {
+            Status: QueueOperationStatus.InProgress,
+            CancelRequested: true
+        };
+
+        if (globalOptions.Json)
+            output.WriteLine(CliOutput.ToJson(new
+            {
+                operationId,
+                canceled = updatedOperation?.Status == QueueOperationStatus.Canceled,
+                cancelRequested
+            }));
+        else
+            error.WriteLine(cancelRequested
+                ? $"Cancellation requested for operation '{operationId}'."
+                : $"Canceled operation '{operationId}'.");
+
+        return CliExitCodes.Success;
+    }
+
+    private static async Task<int> RunQueueClearAsync(
+        List<string> args,
+        TextWriter output,
+        TextWriter error,
+        CancellationToken cancellationToken,
+        GlobalOptions globalOptions)
+    {
+        var flags = ParseFlags(args);
+        var statuses = new HashSet<QueueOperationStatus>();
+
+        if (flags.ContainsKey("completed"))
+            statuses.Add(QueueOperationStatus.Completed);
+
+        if (flags.ContainsKey("failed"))
+            statuses.Add(QueueOperationStatus.Failed);
+
+        if (flags.ContainsKey("canceled") || flags.ContainsKey("cancelled"))
+            statuses.Add(QueueOperationStatus.Canceled);
+
+        if (statuses.Count == 0)
+        {
+            error.WriteLine("Usage: queue clear --completed|--failed|--canceled");
+            return CliExitCodes.UserError;
+        }
+
+        var removed = await AddonServices.QueueStore.RemoveTerminalAsync(
+            statuses, cancellationToken: cancellationToken);
+
+        if (globalOptions.Json)
+            output.WriteLine(CliOutput.ToJson(new { removed }));
+        else
+            output.WriteLine($"Removed {removed} terminal queued operation(s).");
+
+        return CliExitCodes.Success;
+    }
+
+    private static int UnknownQueueCommand(string command, TextWriter output, TextWriter error)
+    {
+        error.WriteLine($"Unknown queue command: {command}");
+        output.WriteLine("Usage: queue list|cancel|clear [options]");
+        return CliExitCodes.UserError;
+    }
+
+    private static async Task<bool> TryAcquireOperationExecutorLeaseAsync(
+        TextWriter error,
+        CancellationToken cancellationToken)
+    {
+        var (acquired, message) = await AddonServices.TryAcquireOperationExecutorLeaseAsync(cancellationToken);
+
+        if (acquired)
+            return true;
+
+        error.WriteLine(message);
+        return false;
     }
 
     // ---- Helpers ----

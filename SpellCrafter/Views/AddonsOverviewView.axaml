@@ -142,7 +142,7 @@
                 <DataGridTemplateColumn Header="Dependencies" Width="1.5*" MinWidth="110">
                     <DataGridTemplateColumn.CellTemplate>
                         <DataTemplate>
-							<ScrollViewer Theme="{StaticResource MaterialModernScrollViewer}" Margin="0 5">
+							<ScrollViewer Margin="0 5">
 								<ItemsControl>
 									<ItemsControl.ItemsSource>
 										<MultiBinding Converter="{StaticResource DependencyTypeMultiConverter}">
@@ -171,7 +171,7 @@
 				<DataGridTemplateColumn Header="Categories" Width="1.5*" MinWidth="110" IsVisible="{Binding Path=BrowseMode}">
 					<DataGridTemplateColumn.CellTemplate>
 						<DataTemplate>
-							<ScrollViewer Theme="{StaticResource MaterialModernScrollViewer}" Margin="0 5">
+							<ScrollViewer Margin="0 5">
 								<ItemsControl ItemsSource="{Binding Path=Categories}">
 									<ItemsControl.ItemsPanel>
 										<ItemsPanelTemplate>
@@ -191,7 +191,7 @@
 				<DataGridTemplateColumn Header="Authors" Width="1*" MinWidth="120">
 					<DataGridTemplateColumn.CellTemplate>
 						<DataTemplate>
-							<ScrollViewer Theme="{StaticResource MaterialModernScrollViewer}" Margin="0 5">
+							<ScrollViewer Margin="0 5">
 								<ItemsControl ItemsSource="{Binding Path=Authors}">
 									<ItemsControl.ItemsPanel>
 										<ItemsPanelTemplate>

@@ -128,6 +128,87 @@ internal static class CliOutput
         };
     }
 
+    public static string FormatQueueOperationTable(IReadOnlyList<QueuedOperation> operations)
+    {
+        if (operations.Count == 0)
+            return "Queue is empty.";
+
+        var lines = new List<string>();
+        lines.Add(string.Empty);
+        lines.Add($"{"ID",-36} {"Addon",-25} {"Type",-12} {"Status",-12} {"Priority",-10} {"Requested",-9} Message");
+        lines.Add(new string('-', 110));
+
+        foreach (var op in operations.OrderBy(o => o.Priority).ThenBy(o => o.RequestTime))
+        {
+            var id = op.OperationId.ToString("N");
+            var addon = op.AddonName ?? op.AddonCommonId.ToString();
+            var type = op.OperationType;
+            var status = FormatQueueStatus(op);
+            var priority = op.Priority == QueuePriority.Low ? "Low" : "Normal";
+            var time = op.RequestTime.ToString("HH:mm:ss");
+            var message = FormatQueueMessage(op);
+
+            lines.Add($"{id,-36} {addon,-25} {type,-12} {status,-12} {priority,-10} {time,-9} {message}");
+        }
+
+        lines.Add(string.Empty);
+        lines.Add($"Total: {operations.Count}");
+
+        return string.Join(Environment.NewLine, lines);
+    }
+
+    public static string ToJson(IReadOnlyList<QueuedOperation> operations)
+    {
+        var dtos = operations.Select(ToDto).ToList();
+        return JsonSerializer.Serialize(dtos, new JsonSerializerOptions { WriteIndented = false });
+    }
+
+    public static string ToJson(QueuedOperation op)
+    {
+        return JsonSerializer.Serialize(ToDto(op), new JsonSerializerOptions { WriteIndented = false });
+    }
+
+    private static QueuedOperationOutputDto ToDto(QueuedOperation op)
+    {
+        return new QueuedOperationOutputDto
+        {
+            OperationId = op.OperationId,
+            AddonCommonId = op.AddonCommonId,
+            AddonName = op.AddonName,
+            OperationType = op.OperationType,
+            Status = FormatQueueStatus(op),
+            Priority = op.Priority == QueuePriority.Low ? "Low" : "Normal",
+            RequestTime = op.RequestTime,
+            StartTime = op.StartTime,
+            CompletionTime = op.CompletionTime,
+            ErrorMessage = op.ErrorMessage,
+            ResultMessage = op.ResultMessage,
+            CompletedAfterCancellation = op.CompletedAfterCancellation,
+            CancelRequested = op.CancelRequested,
+            CancelReason = op.CancelReason,
+            CancelRequestedAtUtc = op.CancelRequestedAtUtc
+        };
+    }
+
+    private static string FormatQueueStatus(QueuedOperation op)
+    {
+        return op.CancelRequested && op.Status == QueueOperationStatus.InProgress
+            ? "Canceling"
+            : op.Status.ToString();
+    }
+
+    private static string FormatQueueMessage(QueuedOperation op)
+    {
+        var message = op.ErrorMessage ?? op.ResultMessage;
+        if (string.IsNullOrWhiteSpace(message))
+            return string.Empty;
+
+        const int maxLength = 80;
+        return message.Length <= maxLength
+            ? message
+            : $"{message[..(maxLength - 1)]}…";
+    }
+
     private sealed record AddonOutputDto
     {
         public string Name { get; init; } = string.Empty;
@@ -144,5 +225,24 @@ internal static class CliOutput
         public string[] OnlineDependencies { get; init; } = [];
         public int? UniqueId { get; init; }
         public string? WebsiteUrl { get; init; }
+    }
+
+    private sealed record QueuedOperationOutputDto
+    {
+        public Guid OperationId { get; init; }
+        public int AddonCommonId { get; init; }
+        public string AddonName { get; init; } = string.Empty;
+        public string OperationType { get; init; } = string.Empty;
+        public string Status { get; init; } = string.Empty;
+        public string Priority { get; init; } = string.Empty;
+        public DateTime RequestTime { get; init; }
+        public DateTime? StartTime { get; init; }
+        public DateTime? CompletionTime { get; init; }
+        public string? ErrorMessage { get; init; }
+        public string? ResultMessage { get; init; }
+        public bool CompletedAfterCancellation { get; init; }
+        public bool CancelRequested { get; init; }
+        public string? CancelReason { get; init; }
+        public DateTime? CancelRequestedAtUtc { get; init; }
     }
 }

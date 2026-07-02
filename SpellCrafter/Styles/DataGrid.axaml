@@ -47,11 +47,11 @@
 		<Setter Property="Foreground" Value="{DynamicResource MaterialColumnHeaderBrush}"/>
 	</Style>
 
-	<Style Selector="DataGrid.MaterialModernScrollBar ScrollBar:horizontal">
-		<Setter Property="Theme" Value="{StaticResource MaterialModernScrollBar}"/>
-    </Style>
-
-    <Style Selector="DataGrid.MaterialModernScrollBar ScrollBar:vertical">
-        <Setter Property="Theme" Value="{StaticResource MaterialModernScrollBar}"/>
-    </Style>
+	<!--
+	    Material.Avalonia.DataGrid 3.17.0 shipped with a compiled DataGrid ControlTheme
+	    that used Theme="{x:Type ScrollBar}" on ScrollBars.  In Avalonia 12 this
+	    resolves to typeof(ScrollBar) which cannot be assigned to Theme (IControlTheme).
+	    Upgraded to 3.17.1-nightly.0.4 which contains the upstream fix:
+	    https://github.com/AvaloniaCommunity/Material.Avalonia/commit/6ec9282
+	-->
 </Styles>

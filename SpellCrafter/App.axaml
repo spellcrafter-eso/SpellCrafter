@@ -2,6 +2,16 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
 			 xmlns:themes="clr-namespace:Material.Styles.Themes;assembly=Material.Styles"
              x:Class="SpellCrafter.App">
+	<Application.Resources>
+		<ResourceDictionary>
+			<ResourceDictionary.MergedDictionaries>
+				<!-- Provide MaterialModernScrollBar in the Application resource scope
+				     so the auto-included Material.Avalonia.DataGrid ControlTheme can
+				     resolve {StaticResource MaterialModernScrollBar} at runtime. -->
+				<ResourceInclude Source="avares://Material.Styles/Resources/Themes/ScrollBar.axaml"/>
+			</ResourceDictionary.MergedDictionaries>
+		</ResourceDictionary>
+	</Application.Resources>
     <Application.Styles>
 		<themes:MaterialThemeBase/>
 		<StyleInclude Source="avares://SpellCrafter/Controls/MetroWindow.paml"/>

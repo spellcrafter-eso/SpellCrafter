@@ -175,4 +175,95 @@ public sealed class CliOutputTests
         CliOutput.WriteWarning(writer, "warning message");
         Assert.Contains("Warning: warning message", writer.ToString());
     }
+
+    [Fact]
+    public void FormatQueueOperationTable_CancelRequested_ShowsCancelingStatus()
+    {
+        var operation = new QueuedOperation
+        {
+            OperationId = Guid.NewGuid(),
+            AddonCommonId = 100,
+            AddonName = "QueuedAddon",
+            OperationType = AddonOperationType.Install,
+            Status = QueueOperationStatus.InProgress,
+            Priority = QueuePriority.Normal,
+            RequestTime = DateTime.UtcNow,
+            CancelRequested = true
+        };
+
+        var result = CliOutput.FormatQueueOperationTable([operation]);
+
+        Assert.Contains("QueuedAddon", result);
+        Assert.Contains("Canceling", result);
+    }
+
+    [Fact]
+    public void ToJson_QueuedOperation_IncludesCancelRequestFields()
+    {
+        var operation = new QueuedOperation
+        {
+            OperationId = Guid.NewGuid(),
+            AddonCommonId = 100,
+            AddonName = "QueuedAddon",
+            OperationType = AddonOperationType.Install,
+            Status = QueueOperationStatus.InProgress,
+            Priority = QueuePriority.Normal,
+            RequestTime = DateTime.UtcNow,
+            CancelRequested = true,
+            CancelReason = "Because test.",
+            CancelRequestedAtUtc = DateTime.UtcNow
+        };
+
+        var json = CliOutput.ToJson(operation);
+        var parsed = JsonSerializer.Deserialize<JsonElement>(json);
+
+        Assert.True(parsed.GetProperty("CancelRequested").GetBoolean());
+        Assert.Equal("Because test.", parsed.GetProperty("CancelReason").GetString());
+        Assert.Equal("Canceling", parsed.GetProperty("Status").GetString());
+    }
+
+    [Fact]
+    public void ToJson_QueuedOperation_IncludesResultMetadata()
+    {
+        var operation = new QueuedOperation
+        {
+            OperationId = Guid.NewGuid(),
+            AddonCommonId = 100,
+            AddonName = "QueuedAddon",
+            OperationType = AddonOperationType.Install,
+            Status = QueueOperationStatus.Completed,
+            Priority = QueuePriority.Normal,
+            RequestTime = DateTime.UtcNow,
+            ResultMessage = "Completed after cancellation was requested.",
+            CompletedAfterCancellation = true
+        };
+
+        var json = CliOutput.ToJson(operation);
+        var parsed = JsonSerializer.Deserialize<JsonElement>(json);
+
+        Assert.Equal(
+            "Completed after cancellation was requested.",
+            parsed.GetProperty("ResultMessage").GetString());
+        Assert.True(parsed.GetProperty("CompletedAfterCancellation").GetBoolean());
+    }
+
+    [Fact]
+    public void FormatQueueOperationTable_TerminalMessage_ShowsMessage()
+    {
+        var operation = new QueuedOperation
+        {
+            OperationId = Guid.NewGuid(),
+            AddonCommonId = 100,
+            AddonName = "QueuedAddon",
+            OperationType = AddonOperationType.Install,
+            Status = QueueOperationStatus.Failed,
+            Priority = QueuePriority.Normal,
+            RequestTime = DateTime.UtcNow,
+            ErrorMessage = "Download failed"
+        };
+
+        var result = CliOutput.FormatQueueOperationTable([operation]);
+
+        Assert.Contains("Download failed", result);
+    }
 }

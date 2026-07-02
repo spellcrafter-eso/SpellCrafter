@@ -30,6 +30,8 @@ public sealed class FakeEsoDataConnectionFactory : IEsoDataConnectionFactory, ID
         db.CreateTableIfNotExists<LocalAddonDependency>();
         db.CreateTableIfNotExists<OnlineAddonDependency>();
         db.CreateTableIfNotExists<AddonOperationJournal>();
+        db.CreateTableIfNotExists<QueuedOperationEntity>();
+        db.CreateTableIfNotExists<OperationExecutorLeaseEntity>();
     }
 
     public EsoDataConnection CreateConnection()

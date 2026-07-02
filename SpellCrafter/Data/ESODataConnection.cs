@@ -1,7 +1,7 @@
-﻿using SpellCrafter.Models;
-using SQLite;
 using System;
 using System.Diagnostics;
+using SpellCrafter.Models;
+using SQLite;
 
 namespace SpellCrafter.Data;
 
@@ -45,5 +45,7 @@ public class EsoDataConnection(string databasePath = "ESOAddons.db") : SQLiteCon
         db.CreateTableIfNotExists<LocalAddonDependency>();
         db.CreateTableIfNotExists<OnlineAddonDependency>();
         db.CreateTableIfNotExists<AddonOperationJournal>();
+        db.CreateTableIfNotExists<QueuedOperationEntity>();
+        db.CreateTableIfNotExists<OperationExecutorLeaseEntity>();
     }
 }

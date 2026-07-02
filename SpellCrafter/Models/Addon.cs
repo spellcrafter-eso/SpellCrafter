@@ -1,77 +1,27 @@
-﻿using System;
+using System;
+using System.Collections.Generic;
+using System.Collections.ObjectModel;
+using System.Diagnostics;
+using System.IO;
+using System.Linq;
+using System.Reactive.Linq;
+using System.Runtime.InteropServices;
+using System.Threading;
+using System.Threading.Tasks;
+using System.Windows.Input;
 using Avalonia.Input.Platform;
 using ReactiveUI;
 using ReactiveUI.Fody.Helpers;
 using SpellCrafter.Enums;
 using SpellCrafter.Messages;
-using System.Collections.Generic;
-using System.Collections.ObjectModel;
-using System.Diagnostics;
-using System.Linq;
-using System.Reactive.Linq;
-using System.Windows.Input;
 using SpellCrafter.Services;
-using System.IO;
-using System.Runtime.InteropServices;
-using System.Threading;
-using System.Threading.Tasks;
 
 namespace SpellCrafter.Models;
 
 public class Addon : ReactiveObject, ILocalAddon, IOnlineAddon, ICommonAddon
 {
     private const string BaseAddonPageLink = "https://www.esoui.com/downloads/info";
-    private static readonly SemaphoreSlim OperationLock = new(1, 1);
-    private static bool _isOperationInProgress;
-
-    public static bool IsOperationInProgress => Volatile.Read(ref _isOperationInProgress);
-
-    public static event EventHandler? OperationStateChanged;
-
-    private static void SetOperationInProgress(bool value)
-    {
-        if (Volatile.Read(ref _isOperationInProgress) == value)
-            return;
-
-        Volatile.Write(ref _isOperationInProgress, value);
-        OperationStateChanged?.Invoke(null, EventArgs.Empty);
-        RaiseKnownOperationCanExecuteChanged();
-    }
-
-    private static void RaiseKnownOperationCanExecuteChanged()
-    {
-        foreach (var addon in AddonDataManager.InstalledAddons
-                     .Concat(AddonDataManager.OnlineAddons)
-                     .Distinct())
-            addon.RaiseOperationCommandCanExecuteChanged();
-    }
-
-    private void RaiseOperationCommandCanExecuteChanged()
-    {
-        InstallCommand.RaiseCanExecuteChanged();
-        ReinstallCommand.RaiseCanExecuteChanged();
-        UpdateCommand.RaiseCanExecuteChanged();
-        DeleteCommand.RaiseCanExecuteChanged();
-    }
-
-    private static async Task<T> RunExclusiveAsync<T>(
-        Func<CancellationToken, Task<T>> operation,
-        CancellationToken cancellationToken)
-    {
-        await OperationLock.WaitAsync(cancellationToken);
-
-        SetOperationInProgress(true);
-
-        try
-        {
-            return await operation(cancellationToken);
-        }
-        finally
-        {
-            SetOperationInProgress(false);
-            OperationLock.Release();
-        }
-    }
+    private const string QueueCancellationMessage = "Operation was canceled via queue management.";
 
     public int CommonAddonId { get; set; } = -1;
     public int? LocalAddonId { get; set; }
@@ -95,36 +45,55 @@ public class Addon : ReactiveObject, ILocalAddon, IOnlineAddon, ICommonAddon
     [Reactive] public string DisplayedVersion { get; set; } = string.Empty;
     [Reactive] public string LatestVersion { get; set; } = string.Empty;
     [Reactive] public string DisplayedLatestVersion { get; set; } = string.Empty;
+    [Reactive] public Guid? QueuedOperationId { get; set; }
+    [Reactive] public string QueuedOperationType { get; set; } = string.Empty;
+    [Reactive] public QueueOperationStatus? QueuedOperationStatus { get; set; }
+    [Reactive] public string QueuedOperationDisplayText { get; set; } = string.Empty;
+    [Reactive] public bool QueuedOperationCancelRequested { get; set; }
+
+    public bool HasQueuedOperation =>
+        QueuedOperationStatus is QueueOperationStatus.Pending or QueueOperationStatus.InProgress;
+
+    public bool CanCancelQueuedOperation =>
+        QueuedOperationId.HasValue &&
+        QueuedOperationStatus is QueueOperationStatus.Pending or QueueOperationStatus.InProgress &&
+        !QueuedOperationCancelRequested;
 
     public ICommand ViewModCommand { get; }
     public AsyncRelayCommand InstallCommand { get; }
     public AsyncRelayCommand ReinstallCommand { get; }
     public AsyncRelayCommand UpdateCommand { get; }
     public AsyncRelayCommand DeleteCommand { get; }
+    public AsyncRelayCommand CancelQueuedOperationCommand { get; }
     public ICommand ViewWebsiteCommand { get; }
     public ICommand CopyLinkCommand { get; }
     public ICommand BrowseFolderCommand { get; }
 
     private IAddonInstallationService? _addonInstallationService;
+    private IAddonOperationSubmissionService? _addonOperationSubmissionService;
 
     public Addon()
     {
         ViewModCommand = new RelayCommand(_ => ViewMod());
         InstallCommand = new AsyncRelayCommand(
-            async _ => await Install(),
-            _ => !IsOperationInProgress && State == AddonState.NotInstalled
+            async _ => await QueueInstall(),
+            _ => State == AddonState.NotInstalled && !HasQueuedOperation
         );
         ReinstallCommand = new AsyncRelayCommand(
-            async _ => await Reinstall(),
-            _ => !IsOperationInProgress && State != AddonState.NotInstalled
+            async _ => await QueueReinstall(),
+            _ => State != AddonState.NotInstalled && !HasQueuedOperation
         );
         UpdateCommand = new AsyncRelayCommand(
-            async _ => await Update(),
-            _ => !IsOperationInProgress && State is AddonState.Outdated or AddonState.InstallationError
+            async _ => await QueueUpdate(),
+            _ => State is AddonState.Outdated or AddonState.InstallationError && !HasQueuedOperation
         );
         DeleteCommand = new AsyncRelayCommand(
-            async _ => await Delete(),
-            _ => !IsOperationInProgress && State != AddonState.NotInstalled
+            async _ => await QueueDelete(),
+            _ => State != AddonState.NotInstalled && !HasQueuedOperation
+        );
+        CancelQueuedOperationCommand = new AsyncRelayCommand(
+            async _ => await CancelQueuedOperation(),
+            _ => CanCancelQueuedOperation
         );
         ViewWebsiteCommand = new RelayCommand(_ => ViewWebsite());
         CopyLinkCommand = new RelayCommand(_ => CopyLink());
@@ -134,7 +103,13 @@ public class Addon : ReactiveObject, ILocalAddon, IOnlineAddon, ICommonAddon
         );
 
         this.WhenAnyValue(x => x.State)
-            .Subscribe(_ => RaiseOperationCommandCanExecuteChanged());
+            .Subscribe(_ => RefreshOperationCommands());
+
+        this.WhenAnyValue(x => x.QueuedOperationStatus)
+            .Subscribe(_ => RefreshOperationCommands());
+
+        this.WhenAnyValue(x => x.QueuedOperationCancelRequested)
+            .Subscribe(_ => RefreshOperationCommands());
     }
 
     public Addon(IAddonInstallationService addonInstallationService)
@@ -143,16 +118,38 @@ public class Addon : ReactiveObject, ILocalAddon, IOnlineAddon, ICommonAddon
         AttachInstallationService(addonInstallationService);
     }
 
+    public Addon(
+        IAddonInstallationService addonInstallationService,
+        IAddonOperationSubmissionService addonOperationSubmissionService)
+        : this(addonInstallationService)
+    {
+        AttachOperationSubmissionService(addonOperationSubmissionService);
+    }
+
     internal void AttachInstallationService(IAddonInstallationService addonInstallationService)
     {
         _addonInstallationService = addonInstallationService
                                     ?? throw new ArgumentNullException(nameof(addonInstallationService));
+
+        if (addonInstallationService is IAddonOperationSubmissionService submissionService)
+            _addonOperationSubmissionService ??= submissionService;
+    }
+
+    internal void AttachOperationSubmissionService(IAddonOperationSubmissionService addonOperationSubmissionService)
+    {
+        _addonOperationSubmissionService = addonOperationSubmissionService
+                                           ?? throw new ArgumentNullException(nameof(addonOperationSubmissionService));
     }
 
     private IAddonInstallationService AddonInstallationService =>
         _addonInstallationService
         ?? throw new InvalidOperationException(
             "Addon installation service has not been configured.");
+
+    private IAddonOperationSubmissionService AddonOperationSubmissionService =>
+        _addonOperationSubmissionService
+        ?? throw new InvalidOperationException(
+            "Addon operation submission service has not been configured.");
 
     private void ViewMod()
     {
@@ -161,47 +158,205 @@ public class Addon : ReactiveObject, ILocalAddon, IOnlineAddon, ICommonAddon
         MessageBus.Current.SendMessage(new ViewAddonMessage(this));
     }
 
-    public async Task<InstallResult> Install(
+    public Task<InstallResult> Install(
         AddonInstallationMethod installationMethod = AddonInstallationMethod.SpellCrafter,
         bool recursive = true,
         IProgress<InstallProgress>? progress = null,
         CancellationToken cancellationToken = default)
     {
-        return await RunExclusiveAsync(
-            ct => AddonInstallationService.InstallAsync(this, installationMethod, recursive, progress, ct),
-            cancellationToken);
+        return AddonInstallationService.InstallAsync(this, installationMethod, recursive, progress, cancellationToken);
     }
 
-    public async Task<InstallResult> Reinstall(
+    public async Task<QueuedOperationSubmissionResult> QueueInstall(
+        AddonInstallationMethod installationMethod = AddonInstallationMethod.SpellCrafter,
         bool recursive = true,
         IProgress<InstallProgress>? progress = null,
         CancellationToken cancellationToken = default)
     {
-        return await RunExclusiveAsync(
-            ct => AddonInstallationService.ReinstallAsync(this, recursive, progress, ct),
-            cancellationToken);
+        var result = await AddonOperationSubmissionService.SubmitInstallAsync(
+            this, installationMethod, recursive, progress, cancellationToken);
+
+        ApplySubmissionResult(result);
+        return result;
     }
 
-    public async Task<InstallResult> Update(
+    public Task<InstallResult> Reinstall(
+        bool recursive = true,
+        IProgress<InstallProgress>? progress = null,
+        CancellationToken cancellationToken = default)
+    {
+        return AddonInstallationService.ReinstallAsync(this, recursive, progress, cancellationToken);
+    }
+
+    public async Task<QueuedOperationSubmissionResult> QueueReinstall(
+        bool recursive = true,
+        IProgress<InstallProgress>? progress = null,
+        CancellationToken cancellationToken = default)
+    {
+        var result = await AddonOperationSubmissionService.SubmitReinstallAsync(
+            this, recursive, progress, cancellationToken);
+
+        ApplySubmissionResult(result);
+        return result;
+    }
+
+    public Task<InstallResult> Update(
         bool recursive = true,
         IProgress<InstallProgress>? progress = null,
         CancellationToken cancellationToken = default)
     {
         if (AddonVersionComparer.CompareVersions(Version, LatestVersion) >= 0)
-            return InstallResult.Success();
+            return Task.FromResult(InstallResult.Success());
 
-        return await RunExclusiveAsync(
-            ct => AddonInstallationService.UpdateAsync(this, recursive, progress, ct),
-            cancellationToken);
+        return AddonInstallationService.UpdateAsync(this, recursive, progress, cancellationToken);
     }
 
-    public async Task<InstallResult> Delete(
+    public async Task<QueuedOperationSubmissionResult> QueueUpdate(
+        bool recursive = true,
         IProgress<InstallProgress>? progress = null,
         CancellationToken cancellationToken = default)
     {
-        return await RunExclusiveAsync(
-            ct => AddonInstallationService.DeleteAsync(this, progress, ct),
-            cancellationToken);
+        if (AddonVersionComparer.CompareVersions(Version, LatestVersion) >= 0)
+            return QueuedOperationSubmissionResult.Rejected("Addon is already up to date.");
+
+        var result = await AddonOperationSubmissionService.SubmitUpdateAsync(
+            this, recursive, progress, cancellationToken);
+
+        ApplySubmissionResult(result);
+        return result;
+    }
+
+    public Task<InstallResult> Delete(
+        IProgress<InstallProgress>? progress = null,
+        CancellationToken cancellationToken = default)
+    {
+        return AddonInstallationService.DeleteAsync(this, progress, cancellationToken);
+    }
+
+    public async Task<QueuedOperationSubmissionResult> QueueDelete(
+        IProgress<InstallProgress>? progress = null,
+        CancellationToken cancellationToken = default)
+    {
+        var result = await AddonOperationSubmissionService.SubmitDeleteAsync(
+            this, progress, cancellationToken);
+
+        ApplySubmissionResult(result);
+        return result;
+    }
+
+    private void ApplySubmissionResult(QueuedOperationSubmissionResult result)
+    {
+        if (result.Operation == null)
+            return;
+
+        SetQueuedOperation(result.Operation);
+    }
+
+    internal void SetQueuedOperation(QueuedOperation operation)
+    {
+        QueuedOperationId = operation.OperationId;
+        QueuedOperationType = operation.OperationType;
+        QueuedOperationStatus = operation.Status;
+        QueuedOperationCancelRequested = operation.CancelRequested;
+        QueuedOperationDisplayText = FormatQueuedOperationDisplayText(operation);
+    }
+
+    internal void SetQueuedOperation(QueuedOperationReceipt operation)
+    {
+        QueuedOperationId = operation.OperationId;
+        QueuedOperationType = operation.OperationType;
+        QueuedOperationStatus = operation.Status;
+        QueuedOperationCancelRequested = operation.CancelRequested;
+        QueuedOperationDisplayText = FormatQueuedOperationDisplayText(operation.OperationType, operation.Status, operation.CancelRequested);
+    }
+
+    internal void ClearQueuedOperation()
+    {
+        QueuedOperationId = null;
+        QueuedOperationType = string.Empty;
+        QueuedOperationStatus = null;
+        QueuedOperationCancelRequested = false;
+        QueuedOperationDisplayText = string.Empty;
+    }
+
+    private async Task CancelQueuedOperation()
+    {
+        if (QueuedOperationId == null)
+            return;
+
+        var requested = await AddonServices.QueueStore.RequestCancellationAsync(
+            QueuedOperationId.Value, QueueCancellationMessage);
+
+        if (!requested)
+            return;
+
+        if (QueuedOperationStatus == QueueOperationStatus.Pending)
+        {
+            ClearQueuedOperation();
+            return;
+        }
+
+        if (QueuedOperationStatus == QueueOperationStatus.InProgress)
+        {
+            QueuedOperationCancelRequested = true;
+            QueuedOperationDisplayText = FormatQueuedOperationDisplayText(
+                QueuedOperationType,
+                QueueOperationStatus.InProgress,
+                true);
+        }
+    }
+
+    private void RefreshOperationCommands()
+    {
+        InstallCommand.RaiseCanExecuteChanged();
+        ReinstallCommand.RaiseCanExecuteChanged();
+        UpdateCommand.RaiseCanExecuteChanged();
+        DeleteCommand.RaiseCanExecuteChanged();
+        CancelQueuedOperationCommand.RaiseCanExecuteChanged();
+        this.RaisePropertyChanged(nameof(HasQueuedOperation));
+        this.RaisePropertyChanged(nameof(CanCancelQueuedOperation));
+    }
+
+    private static string FormatQueuedOperationDisplayText(QueuedOperation operation)
+    {
+        return FormatQueuedOperationDisplayText(
+            operation.OperationType,
+            operation.Status,
+            operation.CancelRequested);
+    }
+
+    private static string FormatQueuedOperationDisplayText(
+        string operationType,
+        QueueOperationStatus status,
+        bool cancelRequested)
+    {
+        var operationName = operationType switch
+        {
+            AddonOperationType.Install => "install",
+            AddonOperationType.Update => "update",
+            AddonOperationType.Reinstall => "reinstall",
+            AddonOperationType.Delete => "delete",
+            AddonOperationType.CleanupOrphans => "orphan cleanup",
+            _ => operationType
+        };
+
+        if (cancelRequested && status == QueueOperationStatus.InProgress)
+            return $"Cancel requested for {operationName}";
+
+        return status switch
+        {
+            QueueOperationStatus.Pending => $"Pending {operationName}",
+            QueueOperationStatus.InProgress => operationType switch
+            {
+                AddonOperationType.Install => "Installing",
+                AddonOperationType.Update => "Updating",
+                AddonOperationType.Reinstall => "Reinstalling",
+                AddonOperationType.Delete => "Deleting",
+                AddonOperationType.CleanupOrphans => "Cleaning up orphans",
+                _ => "In progress"
+            },
+            _ => $"{status} {operationName}"
+        };
     }
 
     private void ViewWebsite()
@@ -323,8 +478,8 @@ public class Addon : ReactiveObject, ILocalAddon, IOnlineAddon, ICommonAddon
             Name = Name,
             Title = Title,
             Description = Description,
-            Authors = [..Authors],
-            Categories = [..Categories]
+            Authors = [.. Authors],
+            Categories = [.. Categories]
         };
     }
 }

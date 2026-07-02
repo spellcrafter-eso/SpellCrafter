@@ -374,3 +374,6 @@ diag-test.cs
 
 # Runtime user configuration
 settings.json
+
+# Avalonia build artifact (XAML resource map)
+\!AvaloniaResources

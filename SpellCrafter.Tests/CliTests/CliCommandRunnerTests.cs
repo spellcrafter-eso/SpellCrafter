@@ -1,4 +1,8 @@
 using SpellCrafter.Cli;
+using SpellCrafter.Data;
+using SpellCrafter.Enums;
+using SpellCrafter.Models;
+using SpellCrafter.Services;
 
 namespace SpellCrafter.Tests.CliTests;
 
@@ -742,6 +746,57 @@ public sealed class CliCommandRunnerTests
     }
 
     [Fact]
+    public async Task QueueClear_WithoutStatusFlag_ReturnsUserError()
+    {
+        using var output = new StringWriter();
+        using var error = new StringWriter();
+
+        var exitCode = await CliCommandRunner.RunAsync(
+            ["queue", "clear"], output, error);
+
+        Assert.Equal(CliExitCodes.UserError, exitCode);
+        Assert.Contains("queue clear", error.ToString());
+    }
+
+    [Fact]
+    public async Task QueueClear_Completed_RemovesCompletedOperationsOnly()
+    {
+        var origDir = SaveCurrentDirectory();
+        var tempDir = Path.Combine(Path.GetTempPath(), "SpellCrafterTests", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(tempDir);
+
+        try
+        {
+            Environment.CurrentDirectory = tempDir;
+            EsoDataConnection.CreateTablesIfNotExists();
+
+            var completed = CreateQueuedOperation(QueueOperationStatus.Completed);
+            var failed = CreateQueuedOperation(QueueOperationStatus.Failed);
+
+            await AddonServices.QueueStore.EnqueueAsync(completed);
+            await AddonServices.QueueStore.EnqueueAsync(failed);
+
+            using var output = new StringWriter();
+            using var error = new StringWriter();
+
+            var exitCode = await CliCommandRunner.RunAsync(
+                ["--data-dir", tempDir, "queue", "clear", "--completed"], output, error);
+
+            Assert.Equal(CliExitCodes.Success, exitCode);
+            Assert.Contains("Removed 1", output.ToString());
+
+            var remaining = await AddonServices.QueueStore.GetAllAsync();
+            var remainingOperation = Assert.Single(remaining);
+            Assert.Equal(failed.OperationId, remainingOperation.OperationId);
+        }
+        finally
+        {
+            Environment.CurrentDirectory = origDir;
+            Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Fact]
     public async Task UnknownSubcommand_ShowsHelp()
     {
         using var output = new StringWriter();
@@ -865,6 +920,347 @@ public sealed class CliCommandRunnerTests
             Environment.CurrentDirectory = origDir;
             Directory.Delete(tempDir, true);
         }
+    }
+
+    // ---- Queue cancel negative paths ----
+
+    [Fact]
+    public async Task QueueCancel_MissingId_ReturnsUserError()
+    {
+        using var output = new StringWriter();
+        using var error = new StringWriter();
+
+        var exitCode = await CliCommandRunner.RunAsync(
+            ["queue", "cancel"], output, error);
+
+        Assert.Equal(CliExitCodes.UserError, exitCode);
+        Assert.Contains("queue cancel", error.ToString());
+    }
+
+    [Fact]
+    public async Task QueueCancel_InvalidGuid_ReturnsUserError()
+    {
+        using var output = new StringWriter();
+        using var error = new StringWriter();
+
+        var exitCode = await CliCommandRunner.RunAsync(
+            ["queue", "cancel", "not-a-guid"], output, error);
+
+        Assert.Equal(CliExitCodes.UserError, exitCode);
+        Assert.Contains("GUID", error.ToString());
+    }
+
+    [Fact]
+    public async Task QueueCancel_UnknownId_ReturnsUserError()
+    {
+        using var output = new StringWriter();
+        using var error = new StringWriter();
+
+        var exitCode = await CliCommandRunner.RunAsync(
+            ["queue", "cancel", "00000000-0000-0000-0000-000000000000"], output, error);
+
+        Assert.Equal(CliExitCodes.UserError, exitCode);
+        Assert.Contains("not found", error.ToString());
+    }
+
+    [Fact]
+    public async Task QueueCancel_TerminalOperation_ReturnsUserError()
+    {
+        var origDir = SaveCurrentDirectory();
+        var tempDir = Path.Combine(Path.GetTempPath(), "SpellCrafterTests", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(tempDir);
+
+        try
+        {
+            Environment.CurrentDirectory = tempDir;
+            EsoDataConnection.CreateTablesIfNotExists();
+
+            var completed = CreateQueuedOperation(QueueOperationStatus.Completed);
+            await AddonServices.QueueStore.EnqueueAsync(completed);
+
+            using var output = new StringWriter();
+            using var error = new StringWriter();
+
+            var exitCode = await CliCommandRunner.RunAsync(
+                ["--data-dir", tempDir, "queue", "cancel", completed.OperationId.ToString("N")], output, error);
+
+            Assert.Equal(CliExitCodes.UserError, exitCode);
+            Assert.Contains("already", error.ToString());
+            Assert.Contains("Completed", error.ToString());
+        }
+        finally
+        {
+            Environment.CurrentDirectory = origDir;
+            Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Fact]
+    public async Task QueueCancel_InProgressOperation_RequestsCancellation()
+    {
+        var origDir = SaveCurrentDirectory();
+        var tempDir = Path.Combine(Path.GetTempPath(), "SpellCrafterTests", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(tempDir);
+
+        try
+        {
+            Environment.CurrentDirectory = tempDir;
+            EsoDataConnection.CreateTablesIfNotExists();
+
+            var inProgress = CreateQueuedOperation(QueueOperationStatus.InProgress);
+            await AddonServices.QueueStore.EnqueueAsync(inProgress);
+
+            using var output = new StringWriter();
+            using var error = new StringWriter();
+
+            var exitCode = await CliCommandRunner.RunAsync(
+                ["--data-dir", tempDir, "queue", "cancel", inProgress.OperationId.ToString("N")], output, error);
+
+            Assert.Equal(CliExitCodes.Success, exitCode);
+            Assert.Contains("Cancellation requested", error.ToString());
+
+            // Verify the cancellation was persisted
+            var all = await AddonServices.QueueStore.GetAllAsync();
+            var updated = Assert.Single(all);
+            Assert.True(updated.CancelRequested);
+            Assert.Equal(QueueOperationStatus.InProgress, updated.Status);
+        }
+        finally
+        {
+            Environment.CurrentDirectory = origDir;
+            Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Fact]
+    public async Task QueueClear_FailedAndCanceled_RemovesBoth()
+    {
+        var origDir = SaveCurrentDirectory();
+        var tempDir = Path.Combine(Path.GetTempPath(), "SpellCrafterTests", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(tempDir);
+
+        try
+        {
+            Environment.CurrentDirectory = tempDir;
+            EsoDataConnection.CreateTablesIfNotExists();
+
+            var completed = CreateQueuedOperation(QueueOperationStatus.Completed);
+            var failed = CreateQueuedOperation(QueueOperationStatus.Failed);
+            var canceled = CreateQueuedOperation(QueueOperationStatus.Canceled);
+
+            await AddonServices.QueueStore.EnqueueAsync(completed);
+            await AddonServices.QueueStore.EnqueueAsync(failed);
+            await AddonServices.QueueStore.EnqueueAsync(canceled);
+
+            using var output = new StringWriter();
+            using var error = new StringWriter();
+
+            var exitCode = await CliCommandRunner.RunAsync(
+                ["--data-dir", tempDir, "queue", "clear", "--failed", "--canceled"], output, error);
+
+            Assert.Equal(CliExitCodes.Success, exitCode);
+            Assert.Contains("Removed 2", output.ToString());
+
+            var remaining = await AddonServices.QueueStore.GetAllAsync();
+            Assert.Single(remaining);
+            Assert.Equal(completed.OperationId, remaining[0].OperationId);
+        }
+        finally
+        {
+            Environment.CurrentDirectory = origDir;
+            Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Fact]
+    public async Task QueueClear_Json_ReturnsRemovedCount()
+    {
+        var origDir = SaveCurrentDirectory();
+        var tempDir = Path.Combine(Path.GetTempPath(), "SpellCrafterTests", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(tempDir);
+
+        try
+        {
+            Environment.CurrentDirectory = tempDir;
+            EsoDataConnection.CreateTablesIfNotExists();
+
+            var completed = CreateQueuedOperation(QueueOperationStatus.Completed);
+            await AddonServices.QueueStore.EnqueueAsync(completed);
+
+            using var output = new StringWriter();
+            using var error = new StringWriter();
+
+            var exitCode = await CliCommandRunner.RunAsync(
+                ["--json", "--data-dir", tempDir, "queue", "clear", "--completed"], output, error);
+
+            Assert.Equal(CliExitCodes.Success, exitCode);
+            Assert.Contains("removed", output.ToString().ToLowerInvariant());
+            Assert.Contains("1", output.ToString());
+        }
+        finally
+        {
+            Environment.CurrentDirectory = origDir;
+            Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Fact]
+    public async Task QueueList_WhenExecutorLeaseHeldByOtherOwner_ReturnsQueue()
+    {
+        var origDir = SaveCurrentDirectory();
+        var tempDir = Path.Combine(Path.GetTempPath(), "SpellCrafterTests", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(tempDir);
+
+        try
+        {
+            Environment.CurrentDirectory = tempDir;
+            EsoDataConnection.CreateTablesIfNotExists();
+
+            // Seed an external lease
+            using (var db = new EsoDataConnection())
+            {
+                db.Insert(new OperationExecutorLeaseEntity
+                {
+                    LeaseName = "process",
+                    OwnerId = "other-machine:9999:other-process-guid",
+                    OwnerKind = "cli",
+                    ProcessId = 9999,
+                    MachineName = "other-machine",
+                    AcquiredAtUtc = DateTime.UtcNow,
+                    LastHeartbeatUtc = DateTime.UtcNow,
+                    ExpiresAtUtc = DateTime.UtcNow.AddHours(1)
+                });
+            }
+
+            var pending = CreateQueuedOperation(QueueOperationStatus.Pending);
+            await AddonServices.QueueStore.EnqueueAsync(pending);
+
+            using var output = new StringWriter();
+            using var error = new StringWriter();
+
+            var exitCode = await CliCommandRunner.RunAsync(
+                ["--data-dir", tempDir, "queue", "list"], output, error);
+
+            // Queue list should succeed without requiring a lease
+            Assert.Equal(CliExitCodes.Success, exitCode);
+            Assert.Contains(pending.OperationId.ToString("N"), output.ToString());
+        }
+        finally
+        {
+            Environment.CurrentDirectory = origDir;
+            Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Fact]
+    public async Task QueueCancel_WhenExecutorLeaseHeldByOtherOwner_RequestsCancellation()
+    {
+        var origDir = SaveCurrentDirectory();
+        var tempDir = Path.Combine(Path.GetTempPath(), "SpellCrafterTests", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(tempDir);
+
+        try
+        {
+            Environment.CurrentDirectory = tempDir;
+            EsoDataConnection.CreateTablesIfNotExists();
+
+            // Seed an external lease
+            using (var db = new EsoDataConnection())
+            {
+                db.Insert(new OperationExecutorLeaseEntity
+                {
+                    LeaseName = "process",
+                    OwnerId = "other-machine:9999:other-process-guid",
+                    OwnerKind = "cli",
+                    ProcessId = 9999,
+                    MachineName = "other-machine",
+                    AcquiredAtUtc = DateTime.UtcNow,
+                    LastHeartbeatUtc = DateTime.UtcNow,
+                    ExpiresAtUtc = DateTime.UtcNow.AddHours(1)
+                });
+            }
+
+            var pending = CreateQueuedOperation(QueueOperationStatus.Pending);
+            await AddonServices.QueueStore.EnqueueAsync(pending);
+
+            using var output = new StringWriter();
+            using var error = new StringWriter();
+
+            var exitCode = await CliCommandRunner.RunAsync(
+                ["--data-dir", tempDir, "queue", "cancel", pending.OperationId.ToString("N")], output, error);
+
+            // Queue cancel should succeed without requiring a lease
+            Assert.Equal(CliExitCodes.Success, exitCode);
+
+            var all = await AddonServices.QueueStore.GetAllAsync();
+            var canceled = Assert.Single(all);
+            Assert.Equal(QueueOperationStatus.Canceled, canceled.Status);
+        }
+        finally
+        {
+            Environment.CurrentDirectory = origDir;
+            Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Fact]
+    public async Task Status_WhenExecutorLeaseHeldByOtherOwner_ReturnsSuccess()
+    {
+        var origDir = SaveCurrentDirectory();
+        var tempDir = Path.Combine(Path.GetTempPath(), "SpellCrafterTests", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(tempDir);
+
+        try
+        {
+            Environment.CurrentDirectory = tempDir;
+            EsoDataConnection.CreateTablesIfNotExists();
+
+            // Seed an external lease
+            using (var db = new EsoDataConnection())
+            {
+                db.Insert(new OperationExecutorLeaseEntity
+                {
+                    LeaseName = "process",
+                    OwnerId = "other-machine:9999:other-process-guid",
+                    OwnerKind = "cli",
+                    ProcessId = 9999,
+                    MachineName = "other-machine",
+                    AcquiredAtUtc = DateTime.UtcNow,
+                    LastHeartbeatUtc = DateTime.UtcNow,
+                    ExpiresAtUtc = DateTime.UtcNow.AddHours(1)
+                });
+            }
+
+            using var output = new StringWriter();
+            using var error = new StringWriter();
+
+            var exitCode = await CliCommandRunner.RunAsync(
+                ["--data-dir", tempDir, "status"], output, error);
+
+            // Status should succeed without requiring a lease
+            Assert.Equal(CliExitCodes.Success, exitCode);
+        }
+        finally
+        {
+            Environment.CurrentDirectory = origDir;
+            Directory.Delete(tempDir, true);
+        }
+    }
+
+    private static QueuedOperation CreateQueuedOperation(QueueOperationStatus status)
+    {
+        return new QueuedOperation
+        {
+            OperationId = Guid.NewGuid(),
+            AddonCommonId = Random.Shared.Next(1, 100000),
+            AddonName = $"QueuedAddon-{Guid.NewGuid():N}",
+            OperationType = AddonOperationType.Install,
+            InstallationMethod = AddonInstallationMethod.SpellCrafter,
+            Status = status,
+            Priority = QueuePriority.Normal,
+            RequestTime = DateTime.UtcNow,
+            CompletionTime = DateTime.UtcNow
+        };
     }
 }
 

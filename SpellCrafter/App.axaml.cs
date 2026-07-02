@@ -19,6 +19,7 @@ namespace SpellCrafter
 
         public override void OnFrameworkInitializationCompleted()
         {
+
             Current!.Resources["MaterialPaperBrush"] = new SolidColorBrush(Color.Parse("#FFFFFF"));
 
             if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)

@@ -1,96 +1,97 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
-	<PropertyGroup>
-		<OutputType>WinExe</OutputType>
-		<TargetFramework>net10.0</TargetFramework>
-		<Nullable>enable</Nullable>
-		<TrimMode>copyused</TrimMode>
-		<BuiltInComInteropSupport>true</BuiltInComInteropSupport>
-		<!--Publish AOT-->
-		<PublishAot>true</PublishAot>
-		<OptimizationPreference>Speed</OptimizationPreference>
-		<InvariantGlobalization>true</InvariantGlobalization>
-		<AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
-		<StripSymbols>true</StripSymbols>
-	</PropertyGroup>
+    <PropertyGroup>
+        <OutputType>WinExe</OutputType>
+        <TargetFramework>net10.0</TargetFramework>
+        <Nullable>enable</Nullable>
+        <TrimMode>copyused</TrimMode>
+        <BuiltInComInteropSupport>true</BuiltInComInteropSupport>
+        <!--Publish AOT-->
+        <PublishAot>true</PublishAot>
+        <OptimizationPreference>Speed</OptimizationPreference>
+        <InvariantGlobalization>true</InvariantGlobalization>
+        <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
+        <StripSymbols>true</StripSymbols>
+    </PropertyGroup>
 
-	<ItemGroup>
-		<InternalsVisibleTo Include="SpellCrafter.Tests" />
-	</ItemGroup>
-	<PropertyGroup Condition="'$(OS)' == 'Windows_NT'">
-		<DefineConstants>$(DefineConstants);WINDOWS</DefineConstants>
-	</PropertyGroup>
+    <ItemGroup>
+        <InternalsVisibleTo Include="SpellCrafter.Tests" />
+        <InternalsVisibleTo Include="SpellCrafter.Cli" />
+    </ItemGroup>
+    <PropertyGroup Condition="'$(OS)' == 'Windows_NT'">
+        <DefineConstants>$(DefineConstants);WINDOWS</DefineConstants>
+    </PropertyGroup>
 
-	<PropertyGroup Condition="'$(OS)' != 'Windows_NT'">
-		<DefineConstants>$(DefineConstants);LINUX</DefineConstants>
-	</PropertyGroup>
-	
-	<ItemGroup>
-		<Content Include=".ReflectionDefine\**" />
-		<AvaloniaResource Include="Assets\**" />
-		<AvaloniaResource Remove="Assets\Icons.axaml" />
-		<None Remove=".gitignore" />
-	</ItemGroup>
-	
-	<!--AOT Reflection Define-->
+    <PropertyGroup Condition="'$(OS)' != 'Windows_NT'">
+        <DefineConstants>$(DefineConstants);LINUX</DefineConstants>
+    </PropertyGroup>
 
-	<ItemGroup>
-		<!--This helps with theme dll-s trimming.
+    <ItemGroup>
+        <Content Include=".ReflectionDefine\**" />
+        <AvaloniaResource Include="Assets\**" />
+        <AvaloniaResource Remove="Assets\Icons.axaml" />
+        <None Remove=".gitignore" />
+    </ItemGroup>
+
+    <!--AOT Reflection Define-->
+
+    <ItemGroup>
+        <!--This helps with theme dll-s trimming.
         If you will publish your application in self-contained mode with p:PublishTrimmed=true and it will use Fluent theme Default theme will be trimmed from the output and vice versa.
         https://github.com/AvaloniaUI/Avalonia/issues/5593 -->
-		<TrimmableAssembly Include="Material.Avalonia" />
-		<TrimmableAssembly Include="Avalonia.Themes.Default" />
-	</ItemGroup>
+        <TrimmableAssembly Include="Material.Avalonia" />
+        <TrimmableAssembly Include="Avalonia.Themes.Default" />
+    </ItemGroup>
 
-	<ItemGroup>
-		<PackageReference Include="AngleSharp" Version="1.5.1" />
-		<PackageReference Include="Avalonia" Version="12.0.5" />
-		<PackageReference Include="Avalonia.Controls.DataGrid" Version="12.0.1" />
-		<PackageReference Include="Avalonia.Desktop" Version="12.0.5" />
-		<PackageReference Include="ReactiveUI.Avalonia" Version="12.0.2" />
-		<PackageReference Include="Fody" Version="6.9.3">
-			<PrivateAssets>all</PrivateAssets>
-			<IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
-		</PackageReference>
-		<PackageReference Include="Material.Avalonia" Version="3.17.0" />
-		<PackageReference Include="Material.Avalonia.DataGrid" Version="3.17.0" />
-		<PackageReference Include="Microsoft.CodeAnalysis.Common" Version="5.3.0" />
-		<PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="5.3.0" />
-		<PackageReference Include="Newtonsoft.Json" Version="13.0.4" />
-		<PackageReference Include="PublishAotCompressed" Version="1.0.5" />
-		<PackageReference Include="ReactiveUI.Fody" Version="19.5.41" />
-		<PackageReference Include="SharpCompress" Version="0.49.1" />
-		<PackageReference Include="sqlite-net-pcl" Version="1.9.172" />
-		<PackageReference Include="SQLiteNetExtensions" Version="2.1.0" />
-		<PackageReference Include="System.Data.SQLite" Version="2.0.3" />
-	</ItemGroup>
+    <ItemGroup>
+        <PackageReference Include="AngleSharp" Version="1.5.1" />
+        <PackageReference Include="Avalonia" Version="12.0.5" />
+        <PackageReference Include="Avalonia.Controls.DataGrid" Version="12.0.1" />
+        <PackageReference Include="Avalonia.Desktop" Version="12.0.5" />
+        <PackageReference Include="ReactiveUI.Avalonia" Version="12.0.2" />
+        <PackageReference Include="Fody" Version="6.9.3">
+            <PrivateAssets>all</PrivateAssets>
+            <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+        </PackageReference>
+        <PackageReference Include="Material.Avalonia" Version="3.17.1-nightly.0.4" />
+        <PackageReference Include="Material.Avalonia.DataGrid" Version="3.17.1-nightly.0.4" />
+        <PackageReference Include="Microsoft.CodeAnalysis.Common" Version="5.3.0" />
+        <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="5.3.0" />
+        <PackageReference Include="Newtonsoft.Json" Version="13.0.4" />
+        <PackageReference Include="PublishAotCompressed" Version="1.0.5" />
+        <PackageReference Include="ReactiveUI.Fody" Version="19.5.41" />
+        <PackageReference Include="SharpCompress" Version="0.49.1" />
+        <PackageReference Include="sqlite-net-pcl" Version="1.9.172" />
+        <PackageReference Include="SQLiteNetExtensions" Version="2.1.0" />
+        <PackageReference Include="System.Data.SQLite" Version="2.0.3" />
+    </ItemGroup>
 
-	<ItemGroup>
-		<Compile Update="Controls\MenuButton.axaml.cs">
-		  <DependentUpon>MenuButton.axaml</DependentUpon>
-		</Compile>
-		<Compile Update="Views\MainWindowView.axaml.cs">
-		  <DependentUpon>MainWindowView.axaml</DependentUpon>
-		</Compile>
-		<Compile Update="Views\AddonDetailsView.axaml.cs">
-			<DependentUpon>AddonDetailsView.axaml</DependentUpon>
-		</Compile>
-		<Compile Update="Views\AddonsOverviewView.axaml.cs">
-		  <DependentUpon>AddonsOverviewView.axaml</DependentUpon>
-		</Compile>
-		<Compile Update="Views\BrowseView.axaml.cs">
-		  <DependentUpon>BrowseView.axaml</DependentUpon>
-		</Compile>
-		<Compile Update="Views\InstalledAddonsView.axaml.cs">
-		  <DependentUpon>InstalledAddonsView.axaml</DependentUpon>
-		</Compile>
-		<Compile Update="Views\SettingsView.axaml.cs">
-		  <DependentUpon>SettingsView.axaml</DependentUpon>
-		</Compile>
-	</ItemGroup>
+    <ItemGroup>
+        <Compile Update="Controls\MenuButton.axaml.cs">
+            <DependentUpon>MenuButton.axaml</DependentUpon>
+        </Compile>
+        <Compile Update="Views\MainWindowView.axaml.cs">
+            <DependentUpon>MainWindowView.axaml</DependentUpon>
+        </Compile>
+        <Compile Update="Views\AddonDetailsView.axaml.cs">
+            <DependentUpon>AddonDetailsView.axaml</DependentUpon>
+        </Compile>
+        <Compile Update="Views\AddonsOverviewView.axaml.cs">
+            <DependentUpon>AddonsOverviewView.axaml</DependentUpon>
+        </Compile>
+        <Compile Update="Views\BrowseView.axaml.cs">
+            <DependentUpon>BrowseView.axaml</DependentUpon>
+        </Compile>
+        <Compile Update="Views\InstalledAddonsView.axaml.cs">
+            <DependentUpon>InstalledAddonsView.axaml</DependentUpon>
+        </Compile>
+        <Compile Update="Views\SettingsView.axaml.cs">
+            <DependentUpon>SettingsView.axaml</DependentUpon>
+        </Compile>
+    </ItemGroup>
 
-	<ItemGroup>
-	  <AvaloniaXaml Update="Assets\Icons.axaml">
-	    <SubType>Designer</SubType>
-	  </AvaloniaXaml>
-	</ItemGroup>
+    <ItemGroup>
+        <AvaloniaXaml Update="Assets\Icons.axaml">
+            <SubType>Designer</SubType>
+        </AvaloniaXaml>
+    </ItemGroup>
 </Project>

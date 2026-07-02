@@ -10,40 +10,52 @@
 		<converters:AddonStateToVisibilityConverter x:Key="StateToVisibility"/>
 	</UserControl.Resources>
 	<StackPanel VerticalAlignment="Center" HorizontalAlignment="Left">
-		<Button Content="Install" FontWeight="Bold" Padding="14 7" MinWidth="80"
-				Command="{Binding Path=InstallCommand}"
-                IsVisible="{Binding Path=State,
-				Converter={StaticResource StateToVisibility}, 
-				ConverterParameter={x:Static enums:AddonState.NotInstalled}}"/>
+		<StackPanel IsVisible="{Binding Path=HasQueuedOperation}">
+			<TextBlock Text="{Binding Path=QueuedOperationDisplayText}"
+					   Margin="7 0" FontWeight="Bold"
+					   Foreground="{DynamicResource MaterialBodyBrush}"/>
+			<Button Content="Cancel" FontWeight="Bold" Padding="14 7" MinWidth="80"
+					Theme="{StaticResource MaterialOutlineButton}" Classes="light"
+					Command="{Binding Path=CancelQueuedOperationCommand}"
+					IsVisible="{Binding Path=CanCancelQueuedOperation}"/>
+		</StackPanel>
 
-		<Button Content="Update" FontWeight="Bold" Padding="14 7" MinWidth="80"
-                Theme="{StaticResource MaterialOutlineButton}" Classes="light"
-				Command="{Binding Path=UpdateCommand}"
-                IsVisible="{Binding Path=State, 
-				Converter={StaticResource StateToVisibility}, 
-				ConverterParameter={x:Static enums:AddonState.Outdated}}"/>
+		<StackPanel IsVisible="{Binding Path=!HasQueuedOperation}">
+			<Button Content="Install" FontWeight="Bold" Padding="14 7" MinWidth="80"
+					Command="{Binding Path=InstallCommand}"
+                    IsVisible="{Binding Path=State,
+					Converter={StaticResource StateToVisibility},
+					ConverterParameter={x:Static enums:AddonState.NotInstalled}}"/>
 
-		<TextBlock Text="Up to date" Margin="7 0" FontWeight="Bold"
-				   Foreground="{DynamicResource MaterialBodyBrush}"
-                   IsVisible="{Binding Path=State, 
-				   Converter={StaticResource StateToVisibility}, 
-				   ConverterParameter={x:Static enums:AddonState.LatestVersion}}"/>
+			<Button Content="Update" FontWeight="Bold" Padding="14 7" MinWidth="80"
+                    Theme="{StaticResource MaterialOutlineButton}" Classes="light"
+					Command="{Binding Path=UpdateCommand}"
+                    IsVisible="{Binding Path=State,
+					Converter={StaticResource StateToVisibility},
+					ConverterParameter={x:Static enums:AddonState.Outdated}}"/>
 
-        <ProgressBar IsIndeterminate="True" Height="10" MinWidth="80" CornerRadius="8"
-                     IsVisible="{Binding Path=State, 
-				     Converter={StaticResource StateToVisibility}, 
-				     ConverterParameter={x:Static enums:AddonState.Installing}}"/>
+			<TextBlock Text="Up to date" Margin="7 0" FontWeight="Bold"
+					   Foreground="{DynamicResource MaterialBodyBrush}"
+                       IsVisible="{Binding Path=State,
+					   Converter={StaticResource StateToVisibility},
+					   ConverterParameter={x:Static enums:AddonState.LatestVersion}}"/>
 
-		<StackPanel Orientation="Horizontal"
-					IsVisible="{Binding Path=State, 
-					Converter={StaticResource StateToVisibility}, 
-					ConverterParameter={x:Static enums:AddonState.InstallationError}}">
-			<Button Content="Update" FontWeight="Bold" Padding="14 7" 
-					Command="{Binding Path=UpdateCommand}"/>
-			<PathIcon Data="{StaticResource AlertIcon}"
-					  Margin="7 0 0 0"
-					  VerticalAlignment="Center"
-					  ToolTip.Tip="An error occurred during the update!"/>
+			<ProgressBar IsIndeterminate="True" Height="10" MinWidth="80" CornerRadius="8"
+                         IsVisible="{Binding Path=State,
+					     Converter={StaticResource StateToVisibility},
+					     ConverterParameter={x:Static enums:AddonState.Installing}}"/>
+
+			<StackPanel Orientation="Horizontal"
+						IsVisible="{Binding Path=State,
+						Converter={StaticResource StateToVisibility},
+						ConverterParameter={x:Static enums:AddonState.InstallationError}}">
+				<Button Content="Update" FontWeight="Bold" Padding="14 7"
+						Command="{Binding Path=UpdateCommand}"/>
+				<PathIcon Data="{StaticResource AlertIcon}"
+						  Margin="7 0 0 0"
+						  VerticalAlignment="Center"
+						  ToolTip.Tip="An error occurred during the update!"/>
+			</StackPanel>
 		</StackPanel>
 	</StackPanel>
 </UserControl>
